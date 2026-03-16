@@ -1,0 +1,30 @@
+#%RAML 1.0 Trait
+
+responses:
+  400:
+    description: Bad request
+    body:
+      application/json:
+        example:
+          {
+            "message": "Bad request",
+            "status": 400
+          }
+  401:
+    description: Unauthorized
+    body:
+      application/json:
+        example:
+          {
+            "message": "Unauthorized",
+            "status": 401
+          }
+  500:
+    description: Internal server error
+    body:
+      application/json:
+        example:
+          {
+            "message": "Internal server error",
+            "status": 500
+          }

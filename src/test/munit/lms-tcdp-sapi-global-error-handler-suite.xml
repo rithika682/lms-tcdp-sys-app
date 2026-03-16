@@ -1,0 +1,577 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+	<munit:config name="tcdp-global-error-handler-test-suite.xml" />
+
+	<!--
+		STRATEGY: lms-tcdp-sapi-global-error-handler uses on-error-PROPAGATE for ALL error types.
+		This means errors bubble up after the handler runs.
+		All tests:
+		  1. Mock apikit:router inside lms-tcdp-sys-api-main to throw the target error.
+		  2. Set expectedErrorType on the munit:test so MUnit expects the propagated error.
+		  3. The on-error-propagate handler runs (sets payload + httpStatus) then re-throws.
+		  4. No validation block needed — expectedErrorType is the assertion.
+	-->
+
+	<!-- ============================================================ -->
+	<!-- TEST 1: DB:CONNECTIVITY → on-error-propagate → 503           -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-DB-CONNECTIVITY-test"
+		doc:id="e5aa6bab-7008-44c4-a74e-81943408471e"
+		description="Test lms-tcdp-sapi-global-error-handler - DB:CONNECTIVITY propagated"
+		expectedErrorType="DB:CONNECTIVITY">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="DB:CONNECTIVITY via apikit:router"
+				doc:id="dfc984f1-c889-42ca-930d-3508fef25f11"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="DB:CONNECTIVITY" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="62422ad0-89c6-4a99-b546-084d20384135"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 2: DB:QUERY_EXECUTION → on-error-propagate → 400        -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-DB-QUERY-EXECUTION-test"
+		doc:id="bbef02a3-1f7f-4b26-8b18-1c23a29de41f"
+		description="Test lms-tcdp-sapi-global-error-handler - DB:QUERY_EXECUTION propagated"
+		expectedErrorType="DB:QUERY_EXECUTION">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="DB:QUERY_EXECUTION via apikit:router"
+				doc:id="62eec17b-cd0b-4003-b2cf-eed31ca3e73e"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="DB:QUERY_EXECUTION" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="789bbce0-38dc-49aa-9be5-779923141ee9"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 3: DB:BAD_SQL_SYNTAX → on-error-propagate → 400         -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-DB-BAD-SQL-SYNTAX-test"
+		doc:id="0c14fed5-c010-4401-bf44-a9da858249d6"
+		description="Test lms-tcdp-sapi-global-error-handler - DB:BAD_SQL_SYNTAX propagated"
+		expectedErrorType="DB:BAD_SQL_SYNTAX">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="DB:BAD_SQL_SYNTAX via apikit:router"
+				doc:id="3f2cc6ee-ffe6-4a51-943b-008de37e3465"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="DB:BAD_SQL_SYNTAX" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="22d73948-86e2-4b53-8a2e-0e18644dcfe3"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 4: DB:RETRY_EXHAUSTED → on-error-propagate → 503        -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-DB-RETRY-EXHAUSTED-test"
+		doc:id="46b4ac42-43a1-4f0f-a99e-31c6cdc10da9"
+		description="Test lms-tcdp-sapi-global-error-handler - DB:RETRY_EXHAUSTED propagated"
+		expectedErrorType="DB:RETRY_EXHAUSTED">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="DB:RETRY_EXHAUSTED via apikit:router"
+				doc:id="9acd8162-2a4a-41df-8067-59f4b5827f4d"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="DB:RETRY_EXHAUSTED" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="23df70dc-7242-4469-ba8b-1e91df47a437"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 5: HTTP:CONNECTIVITY → on-error-propagate → 503         -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-HTTP-CONNECTIVITY-test"
+		doc:id="70c36d3e-0e5c-4c9e-8c61-55dac7bd5c7d"
+		description="Test lms-tcdp-sapi-global-error-handler - HTTP:CONNECTIVITY propagated"
+		expectedErrorType="HTTP:CONNECTIVITY">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="HTTP:CONNECTIVITY via apikit:router"
+				doc:id="fcc93625-287a-40b9-91e4-99cd40b6c990"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:CONNECTIVITY" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="8f16183b-e9d9-4365-9417-a8825b5412ed"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 6: HTTP:TIMEOUT → on-error-propagate → 504              -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-HTTP-TIMEOUT-test"
+		doc:id="a98921bc-5209-4e92-a836-e847a2d63413"
+		description="Test lms-tcdp-sapi-global-error-handler - HTTP:TIMEOUT propagated"
+		expectedErrorType="HTTP:TIMEOUT">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="HTTP:TIMEOUT via apikit:router"
+				doc:id="98d2de9a-734e-4041-ab14-aff7f4af5c0f"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:TIMEOUT" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="4eadd3b7-fc63-4073-913d-85d6f0f5d9a8"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 7: HTTP:BAD_REQUEST → on-error-propagate → 400          -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-HTTP-BAD-REQUEST-test"
+		doc:id="3b22a84f-c7f8-48a0-9ee4-e6c65d1d43d7"
+		description="Test lms-tcdp-sapi-global-error-handler - HTTP:BAD_REQUEST propagated"
+		expectedErrorType="HTTP:BAD_REQUEST">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="HTTP:BAD_REQUEST via apikit:router"
+				doc:id="dc3944a5-fc24-4872-bcf2-7d2fcec1d082"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:BAD_REQUEST" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="a198b0db-8e7a-4f3d-9082-c03bebaa16e8"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 8: HTTP:UNAUTHORIZED → on-error-propagate → 400         -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-HTTP-UNAUTHORIZED-test"
+		doc:id="37cfafe0-d7c5-4315-9086-63d0f1be7cab"
+		description="Test lms-tcdp-sapi-global-error-handler - HTTP:UNAUTHORIZED propagated"
+		expectedErrorType="HTTP:UNAUTHORIZED">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="HTTP:UNAUTHORIZED via apikit:router"
+				doc:id="72cbbac4-e0ee-4cf6-a9bd-d3cc5eae712e"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:UNAUTHORIZED" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="416de2ed-95d9-44a0-bb30-3eb21dade035"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 9: HTTP:FORBIDDEN → on-error-propagate → 400            -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-HTTP-FORBIDDEN-test"
+		doc:id="c42c445e-49ab-4938-a34c-bafc9434679e"
+		description="Test lms-tcdp-sapi-global-error-handler - HTTP:FORBIDDEN propagated"
+		expectedErrorType="HTTP:FORBIDDEN">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="HTTP:FORBIDDEN via apikit:router"
+				doc:id="428f1d12-0cd0-4aa7-9622-264d530e1a85"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:FORBIDDEN" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="cc76b443-9c39-446a-a038-c735c9861814"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 10: HTTP:NOT_FOUND → on-error-propagate → 400           -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-HTTP-NOT-FOUND-test"
+		doc:id="2a43549e-ef27-4651-a7ba-6b203629b4ae"
+		description="Test lms-tcdp-sapi-global-error-handler - HTTP:NOT_FOUND propagated"
+		expectedErrorType="HTTP:NOT_FOUND">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="HTTP:NOT_FOUND via apikit:router"
+				doc:id="a3683985-d671-465a-bec3-41d616bc12a3"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="HTTP:NOT_FOUND" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="ad75f98b-80d3-4e4d-a048-61c4ca6d35fd"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 11: EXPRESSION → on-error-propagate → 400               -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-EXPRESSION-test"
+		doc:id="2c255f16-432d-4bb7-a76f-c37b183900f0"
+		description="Test lms-tcdp-sapi-global-error-handler - EXPRESSION propagated"
+		expectedErrorType="EXPRESSION">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="EXPRESSION via apikit:router"
+				doc:id="7834f100-b39f-4c0c-9346-62f450758706"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="EXPRESSION" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="12acf2f1-1dfd-43e1-9e22-1eecf614d738"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 12: TRANSFORMATION → on-error-propagate → 400           -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-TRANSFORMATION-test"
+		doc:id="2f9a78c9-efa4-4ca9-8fa3-de4c8f98f6e9"
+		description="Test lms-tcdp-sapi-global-error-handler - TRANSFORMATION propagated"
+		expectedErrorType="TRANSFORMATION">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="TRANSFORMATION via apikit:router"
+				doc:id="f4bbb216-94b4-4518-88b8-08e54816ad7c"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="TRANSFORMATION" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="2a265578-c0de-4d3a-a249-9788c1b6a92c"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 13: APIKIT:BAD_REQUEST → on-error-propagate             -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-APIKIT-BAD-REQUEST-test"
+		doc:id="e143102c-12cc-4594-b982-f597e2d962e0"
+		description="Test lms-tcdp-sapi-global-error-handler - APIKIT:BAD_REQUEST propagated"
+		expectedErrorType="APIKIT:BAD_REQUEST">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="APIKIT:BAD_REQUEST via apikit:router"
+				doc:id="14588666-93d0-42a6-9146-73e88385da42"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="APIKIT:BAD_REQUEST" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="c9a1111a-8261-47eb-844e-f98ccd9f5357"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 14: APIKIT:NOT_FOUND → on-error-propagate               -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-APIKIT-NOT-FOUND-test"
+		doc:id="bf36bbff-44af-44df-b422-be63dd896d37"
+		description="Test lms-tcdp-sapi-global-error-handler - APIKIT:NOT_FOUND propagated"
+		expectedErrorType="APIKIT:NOT_FOUND">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="APIKIT:NOT_FOUND via apikit:router"
+				doc:id="f8654226-5501-4281-afc1-8d9b71bd58f3"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="APIKIT:NOT_FOUND" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="feb86771-47f1-4163-99ac-f5db69469518"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 15: APIKIT:METHOD_NOT_ALLOWED → on-error-propagate      -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-APIKIT-METHOD-NOT-ALLOWED-test"
+		doc:id="d6c83601-6df8-49a7-9df7-3243cedf8454"
+		description="Test lms-tcdp-sapi-global-error-handler - APIKIT:METHOD_NOT_ALLOWED propagated"
+		expectedErrorType="APIKIT:METHOD_NOT_ALLOWED">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="APIKIT:METHOD_NOT_ALLOWED via apikit:router"
+				doc:id="59e96713-db90-45ad-8600-25968810b3e7"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="APIKIT:METHOD_NOT_ALLOWED" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="53f28700-178b-460e-80a1-28c4a4932c00"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 16: APIKIT:NOT_ACCEPTABLE → on-error-propagate          -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-APIKIT-NOT-ACCEPTABLE-test"
+		doc:id="7929f6e8-78cb-4ae7-8e24-6892bf7f79ad"
+		description="Test lms-tcdp-sapi-global-error-handler - APIKIT:NOT_ACCEPTABLE propagated"
+		expectedErrorType="APIKIT:NOT_ACCEPTABLE">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="APIKIT:NOT_ACCEPTABLE via apikit:router"
+				doc:id="c1e56c6b-bec9-4eda-8326-a8e79843ff12"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="APIKIT:NOT_ACCEPTABLE" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="b15769ab-9c9d-46a4-98c9-bb058d0f9f28"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 17: APIKIT:UNSUPPORTED_MEDIA_TYPE → on-error-propagate  -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-APIKIT-UNSUPPORTED-MEDIA-TYPE-test"
+		doc:id="4344cbe7-2f10-49e2-9c5a-8282a6346438"
+		description="Test lms-tcdp-sapi-global-error-handler - APIKIT:UNSUPPORTED_MEDIA_TYPE propagated"
+		expectedErrorType="APIKIT:UNSUPPORTED_MEDIA_TYPE">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="APIKIT:UNSUPPORTED_MEDIA_TYPE via apikit:router"
+				doc:id="de7d3249-e94b-486f-afd0-973fb3f263ff"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="APIKIT:UNSUPPORTED_MEDIA_TYPE" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="32be6d5b-4a23-4957-9a88-766e48aa84ed"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 18: APIKIT:NOT_IMPLEMENTED → on-error-propagate         -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-APIKIT-NOT-IMPLEMENTED-test"
+		doc:id="a1b6d7d8-62e0-4ea4-9097-7ccd4bdc7902"
+		description="Test lms-tcdp-sapi-global-error-handler - APIKIT:NOT_IMPLEMENTED propagated"
+		expectedErrorType="APIKIT:NOT_IMPLEMENTED">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="APIKIT:NOT_IMPLEMENTED via apikit:router"
+				doc:id="97654907-a9e9-4098-b83d-9b2b46821ca3"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="APIKIT:NOT_IMPLEMENTED" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="4b57a3b8-e222-4bce-9d98-2fa11ab65061"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+	<!-- ============================================================ -->
+	<!-- TEST 19: ANY (MULE:UNKNOWN) → on-error-propagate → 500       -->
+	<!-- ============================================================ -->
+	<munit:test name="global-error-handler-ANY-MULE-UNKNOWN-test"
+		doc:id="8c27bd74-46ec-4448-ba9b-213c3691854f"
+		description="Test lms-tcdp-sapi-global-error-handler - ANY (MULE:UNKNOWN) propagated"
+		expectedErrorType="MULE:UNKNOWN">
+
+		<munit:behavior>
+			<munit-tools:mock-when doc:name="MULE:UNKNOWN via apikit:router"
+				doc:id="2240c87c-2dbf-49a2-a4dc-89dd49e20fb1"
+				processor="apikit:router">
+				<munit-tools:with-attributes>
+					<munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:error typeId="MULE:UNKNOWN" />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+		</munit:behavior>
+
+		<munit:execution>
+			<flow-ref doc:name="Flow-ref to lms-tcdp-sys-api-main"
+				doc:id="ee48ddba-bc55-409b-95a7-454a2d8de057"
+				name="lms-tcdp-sys-api-main" />
+		</munit:execution>
+
+	</munit:test>
+
+</mule>

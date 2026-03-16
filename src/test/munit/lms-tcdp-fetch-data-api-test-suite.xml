@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+	<munit:config name="lms-tcdp-fetch-data-api-test-suite.xml" />
+
+	<munit:test name="lms-tcdp-fetch-data-api-test-suite-tcdp-report-main-flowTest"
+		doc:id="c5851a66-136b-4f46-9421-2523054f097d"
+		description="Test tcdp-report-main-flow">
+
+		<munit:behavior>
+
+			<!-- Mock 1: Initial DB call in common-sub-flow → returns user_id + job_role_id -->
+			<munit-tools:mock-when doc:name="Mock initial user+role query"
+				doc:id="ca7d2e0d-a101-4347-b6d9-9e7f1c3878d6"
+				processor="db:select">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="b6d6e9f3-acaa-44fc-a3fe-ef483369115c" attributeName="doc:id" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload mediaType="application/java"
+						value='#[%dw 2.0
+output application/java
+---
+[
+    { "user_id": "101", "job_role_id": "201" },
+    { "user_id": "102", "job_role_id": "202" }
+]]' />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+
+			<!-- Mock 2: Scatter-Gather Route 1 → GLMS User DB query -->
+			<munit-tools:mock-when doc:name="Mock GLMS User DB query"
+				doc:id="3b153625-7b78-4a7c-9c75-7b9e5cb2f3cb"
+				processor="flow-ref">
+				<munit-tools:with-attributes>
+					<!-- doc:id of the flow-ref inside Route 1 of scatter-gather -->
+					<munit-tools:with-attribute attributeName="doc:id" whereValue="cd5b9667-fcc8-4425-94ca-8ed4503433bb" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload mediaType="application/java"
+						value='#[%dw 2.0
+output application/java
+---
+[
+    {
+        "User ID"                    : "101",
+        "Current Job Role"           : "Service Engineer",
+        "CAT Industry Classification": "Construction"
+    },
+    {
+        "User ID"                    : "102",
+        "Current Job Role"           : "Sales Rep",
+        "CAT Industry Classification": "Mining"
+    }
+]]' />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+
+			<!-- Mock 3: Scatter-Gather Route 2 → GLMS Course DB query -->
+			<munit-tools:mock-when doc:name="Mock GLMS Course DB query"
+				doc:id="835a758d-293d-486a-86ed-4856ea736343"
+				processor="flow-ref">
+				<munit-tools:with-attributes>
+					<!-- doc:id of the flow-ref inside Route 2 of scatter-gather -->
+					<munit-tools:with-attribute attributeName="doc:id" whereValue="ad185b29-eefb-4cd7-8e14-5190e1d1537c" />
+				</munit-tools:with-attributes>
+				<munit-tools:then-return>
+					<munit-tools:payload mediaType="application/java"
+						value='#[%dw 2.0
+output application/java
+---
+[
+    {
+        "user_id"                        : "101",
+        "role_id"                        : "201",
+        "program_type"                   : "TCDP",
+        "curriculum_name"                : "Service Curriculum v1",
+        "exclusion_month_yy"             : null,
+        "financial_year"                 : null,
+        "exclusion_reason"               : null,
+        "level_name"                     : "Associate",
+        "last_acquired_certification_date": "2024-01-15"
+    },
+    {
+        "user_id"                        : "102",
+        "role_id"                        : "202",
+        "program_type"                   : "SCDP",
+        "curriculum_name"                : "Sales Curriculum v2",
+        "exclusion_month_yy"             : null,
+        "financial_year"                 : null,
+        "exclusion_reason"               : null,
+        "level_name"                     : "Professional",
+        "last_acquired_certification_date": "2024-03-20"
+    }
+]]' />
+				</munit-tools:then-return>
+			</munit-tools:mock-when>
+
+		</munit:behavior>
+
+		<munit:execution>
+			<!-- Fix: use application/java (not avro), and set a proper empty payload -->
+			<munit:set-event doc:name="Set Event" doc:id="dd38b64a-a0a1-4b55-a05c-1ce5eda39da5">
+				<munit:payload value="#[null]" mediaType="application/java" />
+				<!-- Provide queryParams.query so the flow can read attributes.queryParams.query -->
+				<munit:attributes value='#[%dw 2.0
+output application/java
+---
+{
+    queryParams: {
+        "query": "SELECT u.id AS user_id, jr.id AS job_role_id FROM public.\"user\" u JOIN public.job_role jr ON jr.id = u.job_role_id ORDER BY u.created_at DESC LIMIT 20"
+    }
+}]' />
+			</munit:set-event>
+
+			<flow-ref doc:name="Flow-ref to tcdp-report-main-flow"
+				doc:id="4a05d825-5dce-403e-8fa0-d2b8096442db"
+				name="tcdp-report-main-flow" />
+		</munit:execution>
+
+		<munit:validation>
+			<munit-tools:assert-that
+				doc:name="Assert payload is non-empty array of objects"
+				doc:id="07de228c-f58c-4ebd-8b49-95a639f2c419"
+				message="Assertion Failed"
+				expression='#[%dw 2.0
+import * from dw::test::Asserts
+---
+payload must [
+    beArray(),
+    notBe(beEmpty()),
+    eachItem(beObject())
+]]'
+				is="#[MunitTools::notNullValue()]" />
+		</munit:validation>
+
+	</munit:test>
+
+</mule>

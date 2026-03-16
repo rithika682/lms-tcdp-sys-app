@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" 
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" 
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+      xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+    <sub-flow name="tcdp-report-main-flow" doc:id="18966c1d-17ca-49fd-a1c0-2c6d875d7b80">
+
+        <logger level="INFO" doc:name="Log Before DB Call" doc:id="7f096c8e-b223-4bec-8fa6-cb3aaf118af8"
+            message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "START",&#10;	"message": "tcdp-report-main-flow started"&#10;}]'/>
+
+        <!-- Step 1: Single query to fetch both user_id and job_role_id -->
+        <ee:transform doc:name="Set Query,dbDetails" doc:id="9abffedd-f975-4aca-8c32-e7ffd6e53315">
+            <ee:message />
+            <ee:variables>
+                <ee:set-variable variableName="dbDetails"><![CDATA[%dw 2.0
+output application/java
+---
+{
+    //"query"   : "SELECT u.id AS user_id, jr.id AS job_role_id FROM public.\"user\" u JOIN public.job_role jr ON jr.id = u.job_role_id ORDER BY u.created_at DESC LIMIT 20",
+    "query": attributes.queryParams.query,
+    "user"    : Mule::p('db.user'),
+    "password": Mule::p('secure::db.password'),
+    "url"     : Mule::p('db.userurl')
+}]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+
+        <flow-ref doc:name="Flow Ref to common flow" doc:id="d777c09a-dfe3-4739-a485-725c45ae91ec" name="common-sub-flow" />
+
+        <!-- Step 2: Extract both user_id and job_role_id arrays from the same payload in a single transform -->
+        <ee:transform doc:name="Set user_id and job_role_id" doc:id="34ca771c-d44e-4b0a-8422-b3071f0716a1">
+            <ee:message />
+            <ee:variables>
+                <ee:set-variable variableName="user_id"><![CDATA[%dw 2.0
+output application/java
+---
+payload map ($.user_id as String)]]></ee:set-variable>
+                <ee:set-variable variableName="job_role_id"><![CDATA[%dw 2.0
+output application/java
+---
+payload map ($.job_role_id as String)
+
+
+]]></ee:set-variable>
+            </ee:variables>
+        </ee:transform>
+
+        <!-- Step 3: Log both variables -->
+        <logger level="INFO" doc:name="UserId &amp; RoleIds Logger" doc:id="a7a353f6-d6ff-402d-8f57-c53ea321d83f"
+            message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "BEFORE REQUEST",&#10;	"message": "tcdp-report-main-flow started",&#10;	"userIds": write(vars.user_id,"application/java"),&#10;	"roleIds": write(vars.job_role_id,"application/java")&#10;}]' />
+
+        <!-- [STUDIO:"Log job_role_id"]<logger level="INFO" doc:name="Log job_role_id" doc:id="1dc25b5b-2ee9-4d22-bfd3-4ba660e71836"
+            message="#['Job Role IDs fetched from glms_user: ' ++ (vars.job_role_id joinBy ', ')&#93;" /> [STUDIO] -->
+
+        <!-- Step 4: Fetch user and course data in parallel -->
+        <choice doc:name="Choice" doc:id="562c1c9f-5eb2-4941-a034-853ba85c8f69" >
+			<when expression="#[!isEmpty(vars.user_id) and !isEmpty(vars.job_role_id)]">
+				<scatter-gather doc:name="Scatter-Gather - Fetch User and Course Data" doc:id="b782a951-1c68-44d8-bce6-7dcbe9197a0d">
+            <route>
+                <ee:transform doc:name="GLMS User Query" doc:id="0ddb209e-0579-4fa0-aaba-6c7d1d064cd9">
+                    <ee:message />
+                    <ee:variables>
+                        <ee:set-variable variableName="glms_user_query"><![CDATA[%dw 2.0
+output application/java
+---
+"SELECT
+    u.id AS \"User ID\",
+    jr.name AS \"Current Job Role\",
+    i.name AS \"CAT Industry Classification\"
+FROM public.\"user\" u
+JOIN public.job_role jr
+    ON jr.id = u.job_role_id
+JOIN public.industry i
+    ON i.id = jr.industry_id
+WHERE
+    u.id IN (" ++ ((vars.user_id map ($ as String)) joinBy ",") ++ ")
+    AND jr.id IN (" ++ ((vars.job_role_id map ($ as String)) joinBy ",") ++ ")
+    AND u.deleted_at IS NULL"]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+                <ee:transform doc:name="Set DB Details - User DB" doc:id="b1df6929-3d95-404b-b182-0a2d7a0f50b5">
+                    <ee:message />
+                    <ee:variables>
+                        <ee:set-variable variableName="dbDetails"><![CDATA[%dw 2.0
+output application/java
+---
+{
+    "query"   : vars.glms_user_query,
+    "user"    : Mule::p('db.user'),
+    "password": Mule::p('secure::db.password'),
+    "url"     : Mule::p('db.userurl')
+}]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+                <flow-ref doc:name="Flow Reference to Common Flow" doc:id="cd5b9667-fcc8-4425-94ca-8ed4503433bb" name="common-sub-flow" />
+            </route>
+            <route>
+                <ee:transform doc:name="GLMS Course Query" doc:id="699bd2c3-2f8a-4f03-b6b2-2fd65be40cb5">
+                    <ee:message />
+                    <ee:variables>
+                        <ee:set-variable variableName="glms_course_query"><![CDATA[%dw 2.0
+output application/java
+
+var userIds = ((vars.user_id     default []) map ($ as String)) joinBy ","
+var roleIds = ((vars.job_role_id default []) map ($ as String)) joinBy ","
+
+---
+"WITH base AS (
+    SELECT
+        uc.user_id,
+        uc.deleted_at,
+        uc.reason,
+        uc.curriculum_version_id,
+        c.id        AS curriculum_id,
+        c.name      AS curriculum_name,
+        c.role_id,
+        d.domain_name
+    FROM glms_course.public.user_curriculum uc
+    JOIN glms_course.public.curriculum_version cv
+        ON cv.id = uc.curriculum_version_id
+        AND cv.deleted_at IS NULL
+    JOIN glms_course.public.curriculum c
+        ON c.id = cv.curriculum_id
+        AND c.deleted_at IS NULL
+    JOIN glms_course.public.curriculum_domain cd
+        ON cd.curriculum_id = c.id
+        AND cd.deleted_at IS NULL
+    JOIN glms_course.public.domains d
+        ON d.id = cd.domain_id
+        AND d.deleted_at IS NULL
+    WHERE uc.user_id IN (" ++ userIds ++ ")
+      AND c.role_id IN (" ++ roleIds ++ ")
+),
+
+program_type_cte AS (
+    SELECT
+        user_id,
+        role_id,
+        CASE
+            WHEN LOWER(domain_name) = 'service' THEN 'TCDP'
+            WHEN LOWER(domain_name) = 'sales'   THEN 'SCDP'
+            ELSE domain_name
+        END AS program_type
+    FROM base
+    WHERE deleted_at IS NULL
+),
+
+exclusion_cte AS (
+    SELECT
+        user_id,
+        role_id,
+        TO_CHAR(deleted_at, 'Mon YY') AS exclusion_month_yy,
+        CASE
+            WHEN EXTRACT(MONTH FROM deleted_at) >= 4
+            THEN CONCAT(
+                    EXTRACT(YEAR FROM deleted_at)::int,
+                    '-',
+                    RIGHT((EXTRACT(YEAR FROM deleted_at)::int + 1)::text, 2)
+                 )
+            ELSE CONCAT(
+                    (EXTRACT(YEAR FROM deleted_at)::int - 1),
+                    '-',
+                    RIGHT(EXTRACT(YEAR FROM deleted_at)::text, 2)
+                 )
+        END AS financial_year,
+        reason AS exclusion_reason
+    FROM base
+    WHERE deleted_at IS NOT NULL
+      AND LOWER(domain_name) = 'service'
+),
+
+curriculum_name_cte AS (
+    SELECT
+        user_id,
+        role_id,
+        curriculum_name
+    FROM base
+    WHERE deleted_at IS NULL
+),
+
+certification_cte AS (
+    SELECT DISTINCT ON (uc.user_id, uc.role_id)
+        uc.user_id,
+        uc.role_id,
+        p.level_name,
+        uc.completed_at AS last_acquired_certification_date
+    FROM glms_course.public.user_certifications uc
+    JOIN glms_course.public.proficiencies p
+        ON p.id = uc.level_id
+    WHERE uc.user_id IN (" ++ userIds ++ ")
+      AND uc.role_id IN (" ++ roleIds ++ ")
+      AND uc.status = 'completed'
+      AND uc.deleted_at IS NULL
+    ORDER BY uc.user_id, uc.role_id, uc.completed_at DESC
+)
+
+SELECT
+    b.user_id,
+    b.role_id,
+    pt.program_type,
+    cn.curriculum_name,
+    ex.exclusion_month_yy,
+    ex.financial_year,
+    ex.exclusion_reason,
+    ce.level_name,
+    ce.last_acquired_certification_date
+FROM base b
+LEFT JOIN program_type_cte    pt ON pt.user_id = b.user_id AND pt.role_id = b.role_id
+LEFT JOIN curriculum_name_cte cn ON cn.user_id = b.user_id AND cn.role_id = b.role_id
+LEFT JOIN exclusion_cte       ex ON ex.user_id = b.user_id AND ex.role_id = b.role_id
+LEFT JOIN certification_cte   ce ON ce.user_id = b.user_id AND ce.role_id = b.role_id"]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+                <ee:transform doc:name="Set DB Details - Course DB" doc:id="c6e258c6-c346-4980-ab09-07d2fbbfc0c5">
+                    <ee:message />
+                    <ee:variables>
+                        <ee:set-variable variableName="dbDetails"><![CDATA[%dw 2.0
+output application/java
+---
+{
+    "query"   : vars.glms_course_query,
+    "user"    : Mule::p('db.user'),
+    "password": Mule::p('secure::db.password'),
+    "url"     : Mule::p('db.courseurl')
+}]]></ee:set-variable>
+                    </ee:variables>
+                </ee:transform>
+                <flow-ref doc:name="Flow Reference to Common Flow" doc:id="ad185b29-eefb-4cd7-8e14-5190e1d1537c" name="common-sub-flow" />
+            </route>
+        </scatter-gather>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Logger" doc:id="52d1fc42-7f58-4e48-8003-5b5affdb254a" message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "ERROR",&#10;	"message": "No Data"&#10;}]'/>
+			</otherwise>
+		</choice>
+
+        <!-- Step 5: Aggregate and transform output -->
+        <set-variable variableName="aggregatedData" doc:name="Aggregate User and Course Data" doc:id="496a5405-7e55-4dcd-a5f1-a30b8c8bd63a"
+            value="#[%dw 2.0&#10;output application/json&#10;&#10;var users = payload.'0'.payload default []&#10;var tcdp  = payload.'1'.payload default []&#10;&#10;---&#10;((users ++ tcdp) groupBy ((item) -&gt; &#10;    (item.&quot;User ID&quot; default item.user_id) as String))&#10;  pluck (items, key) -&gt;&#10;    items reduce ((item, acc = {}) -&gt; acc ++ item)]" />
+
+        <ee:transform doc:name="Transform to Final Output" doc:id="3569a943-c303-4976-9919-29197cf5fd69">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.aggregatedData map {
+    "Current Job Role"                      : $."Current Job Role"               default "",
+    "CAT Industry Classification"           : $."CAT Industry Classification"    default "",
+    "TCDP Head Count"                       : $.program_type                     default "",
+    "TCDP Exclusion Month / YY"             : $.exclusion_month_yy               default "",
+    "FY of Exclusion"                       : $.financial_year                   default "",
+    "Reason for TCDP Exclusion / Inclusion" : $.exclusion_reason                 default "",
+    "ILP / Curricula Mapped"                : $.curriculum_name                  default "",
+    "Current TCDP Certification Level"      : $.level_name                       default "",
+    "Date of Certification (Last Aquired)"  : $.last_acquired_certification_date default ""
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+
+        <logger level="INFO" doc:name="Log Final Output" doc:id="982bd9d7-4bb6-4c1b-a3f6-c2c6ac36fc32"
+            message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "END",&#10;}]' />
+
+    </sub-flow>
+
+</mule>

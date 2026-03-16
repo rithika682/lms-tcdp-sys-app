@@ -1,0 +1,18 @@
+#%RAML 1.0 SecurityScheme
+type:  x-client-enforcement
+
+describedBy:
+  headers:
+    client_id:
+      description: Client ID issued by API Manager
+      type: string
+      required: false
+      example : 1a3rfe496jfkms49402srr93
+    client_secret:
+      description: Client Secret issued by API Manager
+      type: string
+      required: false
+      example : 7o9der492wklsmnxcvrt48f1
+  responses:
+    401:
+      description: Unauthorized - Invalid or missing credentials

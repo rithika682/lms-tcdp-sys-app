@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+    xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+    xmlns="http://www.mulesoft.org/schema/mule/core"
+    xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+    xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+        http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+    <munit:config name="lms-tcdp-sys-api-test-suite.xml" />
+
+    <!-- TEST 1: GET /tcdp → success -->
+    <munit:test name="get-tcdp-success-test"
+        doc:id="ed82982a-4e23-4f98-9520-ff92c96d711f"
+        description="GET tcdp flow should return array of report objects and transform should execute">
+
+        <munit:behavior>
+
+            <!-- Mock db:select in common-sub-flow → flow-ref executes naturally = covered -->
+            <munit-tools:mock-when doc:name="Mock db:select - initial query"
+                doc:id="90ac6dee-1e34-4eaa-9813-84ee71e466a5"
+                processor="db:select">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:id" whereValue="b6d6e9f3-acaa-44fc-a3fe-ef483369115c" />
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/java" value='#[%dw 2.0
+output application/java
+---
+[
+    { "user_id": "101", "job_role_id": "201" },
+    { "user_id": "102", "job_role_id": "202" }
+]]' />
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+            <!-- Mock scatter-gather Route 1 flow-ref → GLMS User DB -->
+            <munit-tools:mock-when doc:name="Mock scatter-gather route 1 - user data"
+                doc:id="88bfb205-1fdf-4203-930c-eb01dac5d059"
+                processor="flow-ref">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:id" whereValue="cd5b9667-fcc8-4425-94ca-8ed4503433bb" />
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/java" value='#[%dw 2.0
+output application/java
+---
+[
+    { "User ID": "101", "Current Job Role": "Service Engineer", "CAT Industry Classification": "Construction" },
+    { "User ID": "102", "Current Job Role": "Sales Rep", "CAT Industry Classification": "Mining" }
+]]' />
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+            <!-- Mock scatter-gather Route 2 flow-ref → GLMS Course DB -->
+            <munit-tools:mock-when doc:name="Mock scatter-gather route 2 - course data"
+                doc:id="6b0e84f3-04f0-4d9f-bed8-259eeea08c5f"
+                processor="flow-ref">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:id" whereValue="ad185b29-eefb-4cd7-8e14-5190e1d1537c" />
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/java" value='#[%dw 2.0
+output application/java
+---
+[
+    {
+        "user_id": "101", "role_id": "201",
+        "program_type": "TCDP", "curriculum_name": "Service Curriculum v1",
+        "exclusion_month_yy": null, "financial_year": null, "exclusion_reason": null,
+        "level_name": "Associate", "last_acquired_certification_date": "2024-01-15"
+    },
+    {
+        "user_id": "102", "role_id": "202",
+        "program_type": "SCDP", "curriculum_name": "Sales Curriculum v2",
+        "exclusion_month_yy": null, "financial_year": null, "exclusion_reason": null,
+        "level_name": "Professional", "last_acquired_certification_date": "2024-03-20"
+    }
+]]' />
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+        </munit:behavior>
+
+        <munit:execution>
+            <munit:set-event doc:name="Set Event" doc:id="ad31aeb6-e901-4522-adec-dbbde8ec7511">
+                <munit:payload value="#[null]" mediaType="application/java" />
+                <munit:attributes value='#[%dw 2.0
+output application/java
+---
+{
+    queryParams: {
+        "query": "SELECT u.id AS user_id, jr.id AS job_role_id FROM public.\"user\" u JOIN public.job_role jr ON jr.id = u.job_role_id ORDER BY u.created_at DESC LIMIT 20"
+    }
+}]' />
+            </munit:set-event>
+            <flow-ref doc:name="Flow-ref to get tcdp flow"
+                doc:id="6aa30824-73cf-4795-8f2e-ab84f01b93fe"
+                name="get:\tcdp:lms-tcdp-sys-api-config" />
+        </munit:execution>
+
+        <munit:validation>
+            <munit-tools:assert-that doc:name="Assert payload is not null"
+                doc:id="fd8f8118-a25d-437b-8a9b-d3a0a57fd654"
+                expression="#[payload]"
+                is="#[MunitTools::notNullValue()]"
+                message="Payload should not be null" />
+        </munit:validation>
+
+    </munit:test>
+
+    <!-- TEST 2: GET /tcdp → empty result -->
+    <munit:test name="get-tcdp-empty-result-test"
+        doc:id="d120d46c-6dda-41bf-9be3-414d2847341f"
+        description="GET tcdp flow should handle empty result and transform should execute">
+
+        <munit:behavior>
+
+            <!-- Mock db:select to return empty → choice goes to otherwise -->
+            <munit-tools:mock-when doc:name="Mock db:select - empty"
+                doc:id="e271da08-1670-438a-935f-11ab6e866aea"
+                processor="db:select">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="doc:id" whereValue="b6d6e9f3-acaa-44fc-a3fe-ef483369115c" />
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/java" value="#[[] as Array]" />
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+
+        </munit:behavior>
+
+        <munit:execution>
+            <munit:set-event doc:name="Set Event" doc:id="dd0bb742-d656-4ecd-ac13-a47b3833494c">
+                <munit:payload value="#[null]" mediaType="application/java" />
+                <munit:attributes value='#[%dw 2.0
+output application/java
+---
+{
+    queryParams: {
+        "query": "SELECT u.id AS user_id, jr.id AS job_role_id FROM public.\"user\" u JOIN public.job_role jr ON jr.id = u.job_role_id ORDER BY u.created_at DESC LIMIT 20"
+    }
+}]' />
+            </munit:set-event>
+            <flow-ref doc:name="Flow-ref to get tcdp flow"
+                doc:id="6cb47e82-3a95-44ca-bded-4ca9d762223d"
+                name="get:\tcdp:lms-tcdp-sys-api-config" />
+        </munit:execution>
+
+        <munit:validation>
+            <munit-tools:assert-that doc:name="Assert payload is not null"
+                doc:id="0319c980-5bc2-4fb2-a74e-ff947a66bd05"
+                expression="#[payload]"
+                is="#[MunitTools::notNullValue()]"
+                message="Payload should not be null" />
+        </munit:validation>
+
+    </munit:test>
+
+    <!-- TEST 3: Console flow → success -->
+    <munit:test name="tcdp-console-success-test"
+        doc:id="8900fae2-5b5e-4bf0-9a7d-3e32b56e55ef"
+        description="Console flow should load successfully">
+
+        <munit:behavior>
+            <munit-tools:mock-when doc:name="Mock apikit:console"
+                doc:id="b49a97de-7364-435f-a33d-43a5cc740fda"
+                processor="apikit:console">
+                <munit-tools:with-attributes>
+                    <munit-tools:with-attribute attributeName="config-ref" whereValue="lms-tcdp-sys-api-config" />
+                </munit-tools:with-attributes>
+                <munit-tools:then-return>
+                    <munit-tools:payload mediaType="application/json" value='#[%dw 2.0
+output application/json
+---
+{ "console": "ok" }]' />
+                </munit-tools:then-return>
+            </munit-tools:mock-when>
+        </munit:behavior>
+
+        <munit:execution>
+            <munit:set-event doc:name="Set Event" doc:id="52098c1e-3358-42d4-a600-32073eb089ac">
+                <munit:payload value="#[null]" mediaType="application/java" />
+            </munit:set-event>
+            <flow-ref doc:name="Flow-ref to console flow"
+                doc:id="2b75400a-efa3-4e6c-a37a-4f4b7116ed4c"
+                name="lms-tcdp-sys-api-console" />
+        </munit:execution>
+
+        <munit:validation>
+            <munit-tools:assert-that doc:name="Assert console payload is not null"
+                doc:id="3f2e130d-1898-4271-b549-fb6da809163a"
+                expression="#[payload]"
+                is="#[MunitTools::notNullValue()]"
+                message="Console payload should not be null" />
+        </munit:validation>
+
+    </munit:test>
+
+</mule>
