@@ -1,0 +1,29 @@
+#%RAML 1.0
+title: lms-tcdp-sys-api
+mediaType: application/json
+protocols: HTTPS
+description: API to fetch employee data from database.
+
+
+securitySchemes: 
+  client_id_enforcement:  !include /securitySchemes/ClientEnforcementSecurityScheme.raml
+securedBy:
+  - client_id_enforcement
+
+traits:
+  commonErrorResponses: !include /traits/errorResponses.raml
+
+/tcdp:
+   get:
+    is: [commonErrorResponses]
+    description: Fetch employee data from database
+    queryParameters:
+      query:
+        description: SAP DB query
+        type: string
+        required: false
+    responses:
+      200:
+        body:
+          application/json:
+            example: !include /example/tcdpEmployeeDataResponse.json

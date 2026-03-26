@@ -11,7 +11,7 @@ http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/cu
     <sub-flow name="tcdp-report-main-flow" doc:id="18966c1d-17ca-49fd-a1c0-2c6d875d7b80">
 
         <logger level="INFO" doc:name="Log Before DB Call" doc:id="7f096c8e-b223-4bec-8fa6-cb3aaf118af8"
-            message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "START",&#10;	"message": "tcdp-report-main-flow started"&#10;}]'/>
+            message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "START",&#10;	"message": "tcdp-report-main-flow started...."&#10;}]'/>
 
         <!-- Step 1: Single query to fetch both user_id and job_role_id -->
         <ee:transform doc:name="Set Query,dbDetails" doc:id="9abffedd-f975-4aca-8c32-e7ffd6e53315">
@@ -21,8 +21,7 @@ http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/cu
 output application/java
 ---
 {
-    //"query"   : "SELECT u.id AS user_id, jr.id AS job_role_id FROM public.\"user\" u JOIN public.job_role jr ON jr.id = u.job_role_id ORDER BY u.created_at DESC LIMIT 20",
-    "query": attributes.queryParams.query,
+    "query"   : attributes.queryParams.query,
     "user"    : Mule::p('db.user'),
     "password": Mule::p('secure::db.password'),
     "url"     : Mule::p('db.userurl')
@@ -52,10 +51,7 @@ payload map ($.job_role_id as String)
 
         <!-- Step 3: Log both variables -->
         <logger level="INFO" doc:name="UserId &amp; RoleIds Logger" doc:id="a7a353f6-d6ff-402d-8f57-c53ea321d83f"
-            message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "BEFORE REQUEST",&#10;	"message": "tcdp-report-main-flow started",&#10;	"userIds": write(vars.user_id,"application/java"),&#10;	"roleIds": write(vars.job_role_id,"application/java")&#10;}]' />
-
-        <!-- [STUDIO:"Log job_role_id"]<logger level="INFO" doc:name="Log job_role_id" doc:id="1dc25b5b-2ee9-4d22-bfd3-4ba660e71836"
-            message="#['Job Role IDs fetched from glms_user: ' ++ (vars.job_role_id joinBy ', ')&#93;" /> [STUDIO] -->
+            message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "BEFORE REQUEST",&#10;	"message": "tcdp-report-main-flow started...",&#10;	"userIds": write(vars.user_id,"application/java"),&#10;	"roleIds": write(vars.job_role_id,"application/java")&#10;}]' />
 
         <!-- Step 4: Fetch user and course data in parallel -->
         <choice doc:name="Choice" doc:id="562c1c9f-5eb2-4941-a034-853ba85c8f69" >
@@ -70,6 +66,8 @@ output application/java
 ---
 "SELECT
     u.id AS \"User ID\",
+    u.first_name as \"Employee Name\",
+    u.employee_id as \"Employee ID\",
     jr.name AS \"Current Job Role\",
     i.name AS \"CAT Industry Classification\"
 FROM public.\"user\" u
@@ -249,6 +247,8 @@ output application/java
 output application/json
 ---
 vars.aggregatedData map {
+	"Employee ID"                           : $."Employee ID"                    default "",
+    "Employee Name"                         : $."Employee Name"                  default "",
     "Current Job Role"                      : $."Current Job Role"               default "",
     "CAT Industry Classification"           : $."CAT Industry Classification"    default "",
     "TCDP Head Count"                       : $.program_type                     default "",

@@ -1,0 +1,13 @@
+reconnection:
+  frequency: "3000"
+  attempts: "3"
+  
+  
+http:
+  host: "0.0.0.0"
+  port: "8085"
+  timeout: "320000"
+
+db:
+  retries: "5"
+  time: "60000"
