@@ -1,8 +1,16 @@
 db:
   user: "gmmco-readonlydb-user"
-  
+#  password: "gM9c!D1vBLr2"
   courseurl: "jdbc:postgresql://13.235.152.239:5432/glms_course?sslmode=require"
+  learnerurl: "jdbc:postgresql://13.235.152.239:5432/glms_learner?sslmode=require"
+  assessmenturl: "jdbc:postgresql://13.235.152.239:5432/glms_assessment?sslmode=require"
   userurl: "jdbc:postgresql://13.235.152.239:5432/glms_user?sslmode=require"
-
+  uatpassword: "gMc#dvuM234"
+  uatuser: "gmmcouat-read-user"
+  uatcourse_url: "jdbc:postgresql://65.2.135.19:5432/glms_course?sslmode=require"
+  uatlearner_url: "jdbc:postgresql://65.2.135.19:5432/glms_learner?sslmode=require"
+  uatassessment_url: "jdbc:postgresql://65.2.135.19:5432/glms_assessment?sslmode=require"
+  uatuser_url: "jdbc:postgresql://65.2.135.19:5432/glms_user?sslmode=require"
+  
 api:
-  id: "20775714"
+  id: "20765573"

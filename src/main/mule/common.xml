@@ -1,26 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:db="http://www.mulesoft.org/schema/mule/db"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
 
-<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns="http://www.mulesoft.org/schema/mule/core"
-	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
-	<sub-flow name="common-sub-flow" doc:id="70507a21-a627-4310-a708-7cef5afca06a" >
-		<logger level="INFO" doc:name="Before Logger" doc:id="df6a3a59-383c-4322-8792-e8a1887316a3" message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "BEFORE DATABASE"&#10;}]'/>
-		<until-successful maxRetries="${db.retries}" doc:name="Until Successful" doc:id="4c683a55-241a-4e6f-81cc-7cf2129999e8" millisBetweenRetries="${db.time}">
-			<db:select doc:name="Select" doc:id="b6d6e9f3-acaa-44fc-a3fe-ef483369115c" config-ref="Database_Config1">
-			<db:sql><![CDATA[#[vars.dbDetails.query]]]></db:sql>
-			<db:input-parameters><![CDATA[#[%dw 2.0
+    <sub-flow name="commonSub_Flow" doc:id="58a85f8b-ecea-4922-82f8-d46b1aa269d6">
+        <logger level="INFO"
+                doc:name="Start Logger"
+                doc:id="67715385-78a8-43f4-9524-7a02dcdadaf7"
+                message="#['commonSub_Flow started']"/>
+		<until-successful maxRetries="${db.retries}" doc:name="Until Successful" doc:id="12849ece-683a-40c1-96d4-5e5ab909e9a8" millisBetweenRetries="${db.time}">
+			<db:select doc:name="Select" doc:id="8ce0a841-4d5e-4f6c-961b-31b5fb9c0d05" config-ref="common-db-Config">
+                <db:sql><![CDATA[#[vars.DB_details.query]]]></db:sql>
+                <db:input-parameters><![CDATA[#[%dw 2.0
 output application/java
 ---
 {
     ids: {
-        value: vars.ids map ($ as Number),
-        "type": "ARRAY",
+        value    : vars.ids map ($ as Number),
+        "type"   : "ARRAY",
         arrayType: "INTEGER"
     }
 }]]]></db:input-parameters>
-		</db:select>
+            </db:select>
 		</until-successful>
-		<logger level="INFO" doc:name="After Logger" doc:id="930a15cb-450b-4327-952c-6a44b8ec9c4e" message='#[output application/json&#10;---&#10;{&#10;	"flowName": "tcdp-report-main-flow",&#10;	"tracePoint": "AFTER DATABASE"&#10;}]'/>
-	</sub-flow>
+    </sub-flow>
+
 </mule>

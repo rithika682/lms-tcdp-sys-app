@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit" xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools  http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+	<munit:config name="lms-employee-onboarding-sys-api-test-suite.xml" />
+	<munit:test name="lms-employee-onboarding-sys-api-test-suite-course-employee-onboarding-sys-apiSub_FlowTest" doc:id="0c38b25e-dad8-4be4-add4-5f2f5c3dadc6" description="Test">
+		<munit:behavior >
+			<munit-tools:mock-when doc:name="Mock when" doc:id="12485d50-4309-49d4-a924-45b445593a65" processor="db:select">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="8ce0a841-4d5e-4f6c-961b-31b5fb9c0d05" attributeName="doc:id" />
+				</munit-tools:with-attributes>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution >
+			<munit:set-event doc:name="Set Event" doc:id="2477e601-7584-4690-bb97-39aa18384cbf" >
+				<munit:payload value='#[%dw 2.0&#10;output application/json&#10;---&#10;"user_id":[  77093,&#10;  77086,&#10;  77085,&#10;  77084,&#10;  77083,&#10;  77082,&#10;  77074,&#10;  77070,&#10;  77069,&#10;  77067,&#10;  77065,&#10;  77064,&#10;  77063,&#10;  77061,&#10;  77057,&#10;  77053,&#10;  77052,&#10;  77051,&#10;  77050,&#10;  77049,&#10;  77048,&#10;  77047,&#10;  77046,&#10;  77044,&#10;  77043,&#10;  77042,&#10;  77041,&#10;  77040,&#10;  77039,&#10;  77038,&#10;  77037,&#10;  77036,&#10;  77035,&#10;  77033,&#10;  77032,&#10;  77031,&#10;  77025,&#10;  77023,&#10;  77022,&#10;  77021,&#10;  77016,&#10;  77014,&#10;  77013,&#10;  77012,&#10;  77011,&#10;  77010,&#10;  77009,&#10;  77007,&#10;  77005,&#10;  77003,&#10;  77002,&#10;  77001,&#10;  77000,&#10;  76998,&#10;  76996,&#10;  76994,&#10;  76993,&#10;  76992,&#10;  76991,&#10;  76988,&#10;  76987,&#10;  76986,&#10;  76985,&#10;  76984,&#10;  76982,&#10;  76981,&#10;  76980,&#10;  76979,&#10;  76978,&#10;  76977,&#10;  76976,&#10;  76975,&#10;  76974,&#10;  76973]]' mediaType="application/java" />
+			</munit:set-event>
+			<flow-ref doc:name="Flow-ref to course-employee-onboarding-sys-apiSub_Flow" doc:id="5aa38fb0-1e37-474c-95c5-e59873315b20" name="course-employee-onboarding-sys-apiSub_Flow"/>
+		</munit:execution>
+	</munit:test>
+
+
+</mule>

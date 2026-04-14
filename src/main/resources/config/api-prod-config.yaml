@@ -1,8 +1,0 @@
-db:
-  user: "gmmco-readonlydb-user"
-  
-  courseurl: "jdbc:postgresql://13.235.152.239:5432/glms_course?sslmode=require"
-  userurl: "jdbc:postgresql://13.235.152.239:5432/glms_user?sslmode=require"
-
-api:
-  id: "20775714"

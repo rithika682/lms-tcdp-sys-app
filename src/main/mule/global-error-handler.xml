@@ -1,24 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
- 
-<mule xmlns:cluster="http://www.mulesoft.org/schema/mule/ee/cluster"
-	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
-	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
-http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
- 
-	<!-- ============================================================ -->
-	<!--              GLOBAL ERROR HANDLER                            -->
-	<!--  DB errors → proper HTTP status + structured JSON response   -->
-	<!--  All errors propagate up to Process API via HTTP response    -->
-	<!-- ============================================================ -->
- 
-	<error-handler name="lms-tcdp-sapi-global-error-handler" doc:name="Global Error Handler" doc:id="a39c54d1-e09f-40a9-a5c9-db5ccd30dbae">
- 
-		<!-- ============================================================ -->
-		<!-- DB:CONNECTIVITY → 503 Service Unavailable                    -->
-		<!-- Happens when: too many clients, DB server down, network fail  -->
-		<!-- ============================================================ -->
-		 <on-error-propagate type="DB:CONNECTIVITY">
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+
+    <!-- ✅ Fixed: name matches defaultErrorHandler-ref in global-config.xml -->
+    <error-handler name="lms-sapi-global-error-handler" doc:name="LMS System API Global Error Handler">
+
+        <!-- DB Connectivity -->
+        <on-error-propagate type="DB:CONNECTIVITY">
             <logger level="ERROR" message='#["DB:CONNECTIVITY - " ++ error.description]'/>
             <ee:transform doc:name="Error Response">
                 <ee:message>
@@ -260,5 +253,5 @@ output application/json
         </on-error-propagate>
 
     </error-handler>
- 
+
 </mule>

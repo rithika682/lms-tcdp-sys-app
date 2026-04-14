@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:munit="http://www.mulesoft.org/schema/mule/munit" xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xsi:schemaLocation="
+		http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+		http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+		http://www.mulesoft.org/schema/mule/munit-tools  http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+	<munit:config name="lms-employee-onboarding-sys-api--test-suite.xml" />
+	<munit:test name="lms-employee-onboarding-sys-api--test-suite-lms-employee-onboarding-sys-api--mainTest" doc:id="ab44f46f-b267-4c3c-a5d3-06797ca4c3b4" description="Test">
+		<munit:behavior >
+			<munit-tools:mock-when doc:name="Mock when" doc:id="5f688cf8-d498-4a12-8837-6b315b3d4ee0" processor="apikit:router">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="lms-employee-onboarding-sys-api--config" attributeName="config-ref" />
+				</munit-tools:with-attributes>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution >
+			<flow-ref doc:name="Flow-ref to lms-employee-onboarding-sys-api--main" doc:id="c8b148f2-1788-4a40-aa3e-1cd890e858c4" name="lms-employee-onboarding-sys-api--main"/>
+		</munit:execution>
+	</munit:test>
+	<munit:test name="lms-employee-onboarding-sys-api--test-suite-lms-employee-onboarding-sys-api--consoleTest" doc:id="f16b4dad-f500-47cd-9f17-33a7b51926be" description="Test">
+		<munit:behavior >
+			<munit-tools:mock-when doc:name="Mock when" doc:id="780937d4-793a-4cdb-a658-768a37514222" processor="apikit:console">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="lms-employee-onboarding-sys-api--config" attributeName="config-ref" />
+				</munit-tools:with-attributes>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution >
+			<flow-ref doc:name="Flow-ref to lms-employee-onboarding-sys-api--console" doc:id="71a6e7db-c737-40f0-bb86-0bb137a8f979" name="lms-employee-onboarding-sys-api--console"/>
+		</munit:execution>
+	</munit:test>
+	<munit:test name="lms-employee-onboarding-sys-api--test-suite-get:\employee-onboarding:lms-employee-onboarding-sys-api--configTest" doc:id="1e5bbd60-fef6-4e42-871d-0ff408a3a304" description="Test">
+		<munit:behavior >
+			<munit-tools:mock-when doc:name="Mock when" doc:id="df912dca-8145-4654-b21b-42e23ddc270b" processor="flow-ref">
+				<munit-tools:with-attributes >
+					<munit-tools:with-attribute whereValue="d56e2165-15a2-4e53-8ed2-870a711bf6d9" attributeName="doc:id" />
+				</munit-tools:with-attributes>
+			</munit-tools:mock-when>
+		</munit:behavior>
+		<munit:execution >
+			<flow-ref doc:name="Flow-ref to get:\employee-onboarding:lms-employee-onboarding-sys-api--config" doc:id="c0e1ab85-f273-440b-aaea-3b75e84e0d47" name="get:\employee-onboarding:lms-employee-onboarding-sys-api--config"/>
+		</munit:execution>
+	</munit:test>
+
+
+</mule>

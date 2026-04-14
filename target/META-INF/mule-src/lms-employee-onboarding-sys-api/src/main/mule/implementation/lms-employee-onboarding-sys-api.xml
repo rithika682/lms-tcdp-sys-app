@@ -1,0 +1,439 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<sub-flow name="course-employee-onboarding-sys-apiSub_Flow" doc:id="36b8dcbe-0333-4c72-8cfe-ed87c750de00" >
+		<logger level="INFO" doc:name="before SAP call" doc:id="1813f0bf-7903-4c2e-9860-35b6fc6e4765" message='#["before calling SAP sample data from neon database"]'/>
+		<ee:transform doc:name="common id-db-details" doc:id="281c0a72-1c01-4dc6-af96-000bcdf39616" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="DB_details" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"query": "SELECT
+u.id AS "user_id",
+jr.id AS job_role_id,
+    u.created_at
+FROM public."user" u
+JOIN public.job_role jr
+    ON jr.id = u.job_role_id
+WHERE u.created_at >= NOW() - INTERVAL '6 years'
+ORDER BY u.created_at DESC",
+	//"query": attributes.queryParams.query,
+"user":Mule::p('db.user'),
+	"password": p('secure::db.password'),
+	"url":Mule::p('db.userurl')
+
+
+	
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="flow-reference-to-fetch-uid's" doc:id="9b31f513-17aa-4cdb-889d-87cdcc2907bd" name="commonSub_Flow"/>
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;---&#10;payload.user_id]" doc:name="common-uid's" doc:id="f632ae0a-ce9b-4538-9da9-4e7e6f6ccd20" variableName="uids"/>
+		<choice doc:name="Choice" doc:id="acb131fc-b543-45d3-b8f1-b7c271c95b1a" >
+			<when expression="#[!isEmpty(vars.uids)]">
+				<scatter-gather doc:name="Scatter-Gather" doc:id="9eebc46a-8e9a-41d7-a81a-68217bade881">
+		<route>
+				<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;&quot;SELECT&#10;    u.id AS \&quot;user_id\&quot;,&#10;    u.employee_id AS \&quot;Employee ID\&quot;,&#10;    u.first_name AS \&quot;Employee Name\&quot;,&#10;    jr.name AS \&quot;Job Role\&quot;&#10;FROM&#10;    \&quot;user\&quot; u&#10;JOIN&#10;    \&quot;job_role\&quot; jr ON jr.id = u.job_role_id&#10;WHERE&#10;    u.id IN (&quot; ++ (vars.uids map ($ as String) joinBy &quot;,&quot;) ++ &quot;)&#10;    AND u.employee_type = 'internal'&#10;    AND u.deleted_at IS NULL&#10;    AND COALESCE(u.date_of_joining, u.created_at) &gt;= (CURRENT_DATE - INTERVAL '100 days')&quot;]" doc:name="empid_name_ jobrole" doc:id="4fcc79fb-2411-4939-bc5e-65b260f0a26c" variableName="empQuery" />
+				<ee:transform doc:name="user-db-details" doc:id="5f5ef0d2-9611-4d5d-9cac-d0a0ba6d74be">
+					<ee:message />
+					<ee:variables>
+						<ee:set-variable variableName="DB_details"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"query": vars.empQuery,
+	"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.userurl')
+ //"password": Mule::p('db.uatpassword'),
+ //"url":"jdbc:postgresql://65.2.135.19:5432/glms_user?sslmode=require"
+ //"user":"gmmcouat-read-user",
+	
+	
+}]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="flow reference-to-fetch-emp-id-name-jobrole-from-user-db" doc:id="932eb7fd-22c3-4733-8812-3c3c36001b0e" name="commonSub_Flow" />
+			
+</route>
+			<route>
+				<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;&quot;SELECT&#10;    ulp.user_id,&#10;    ulp.created_at AS \&quot;Mandatory Learnings Assigned On\&quot;,&#10;    ulp.target_date AS \&quot;Mandatory Learnings Target Completion Date\&quot;,&#10;    MAX(lpc.completed_at) AS \&quot;Mandatory Learnings Completed On\&quot;,&#10;&#10;    ROUND(&#10;        (COUNT(DISTINCT lpc.id)::decimal * 100) /&#10;        NULLIF((SELECT COUNT(*) FROM \&quot;plan_activities\&quot; pa&#10;                WHERE pa.plan_id = '71' AND pa.is_active = TRUE AND pa.deleted_at IS NULL), 0),&#10;    2) AS \&quot;Mandatory Learnings Completion %\&quot;,&#10;&#10;    (SELECT CASE WHEN status_ilp.status IN ('passed','completed') THEN 'Completed'&#10;                 WHEN status_ilp.status = 'in_progress' THEN 'InProgress'&#10;                 WHEN status_ilp.status = 'mapped' THEN 'Scheduled'&#10;                 ELSE INITCAP(COALESCE(status_ilp.status::text, '')) END&#10;     FROM ilp status_ilp&#10;     WHERE status_ilp.user_id = ulp.user_id AND status_ilp.course_id = '918' AND status_ilp.deleted_at IS NULL&#10;     ORDER BY status_ilp.created_at ASC LIMIT 1) AS \&quot;Product Knowledge Status\&quot;,&#10;&#10;    (SELECT TO_CHAR(cs.start_date, 'DD-Mon-YYYY') || ' to ' || TO_CHAR(cs.end_date, 'DD-Mon-YYYY')&#10;     FROM \&quot;ilp\&quot; sched_ilp JOIN \&quot;course_schedule\&quot; cs ON cs.id = sched_ilp.course_schedule_id&#10;     WHERE sched_ilp.user_id = ulp.user_id AND sched_ilp.course_id = '918' AND sched_ilp.deleted_at IS NULL&#10;     ORDER BY sched_ilp.created_at ASC LIMIT 1) AS \&quot;Product Knowledge Schedule Date\&quot;,&#10;&#10;    (SELECT CASE WHEN kra_ilp.status IN ('passed','completed') THEN 'Completed'&#10;                 WHEN kra_ilp.status = 'in_progress' THEN 'InProgress'&#10;                 WHEN kra_ilp.status = 'mapped' THEN 'Scheduled'&#10;                 ELSE INITCAP(COALESCE(kra_ilp.status::text, '')) END&#10;     FROM \&quot;ilp\&quot; kra_ilp&#10;     WHERE kra_ilp.user_id = ulp.user_id AND kra_ilp.course_id = '918' AND kra_ilp.deleted_at IS NULL&#10;     ORDER BY kra_ilp.created_at ASC LIMIT 1) AS \&quot;KRA Status\&quot;,&#10;&#10;    (SELECT TO_CHAR(cs.start_date, 'DD-Mon-YYYY') || ' to ' || TO_CHAR(cs.end_date, 'DD-Mon-YYYY')&#10;     FROM \&quot;ilp\&quot; kra_sched JOIN \&quot;course_schedule\&quot; cs ON cs.id = kra_sched.course_schedule_id&#10;     WHERE kra_sched.user_id = ulp.user_id AND kra_sched.course_id = '918' AND kra_sched.deleted_at IS NULL&#10;     ORDER BY kra_sched.created_at ASC LIMIT 1) AS \&quot;KRA Schedule Date\&quot;,&#10;&#10;    (SELECT sga_ass.created_at FROM \&quot;user_learning_plans\&quot; sga_ass&#10;     WHERE sga_ass.user_id = ulp.user_id AND sga_ass.plan_id = '71' AND sga_ass.deleted_at IS NULL&#10;     ORDER BY sga_ass.created_at ASC LIMIT 1) AS \&quot;Sales SGA Assigned On\&quot;,&#10;&#10;    (SELECT sga_tar.target_date FROM \&quot;user_learning_plans\&quot; sga_tar&#10;     WHERE sga_tar.user_id = ulp.user_id AND sga_tar.plan_id = '71' AND sga_tar.deleted_at IS NULL&#10;     ORDER BY sga_tar.created_at ASC LIMIT 1) AS \&quot;Sales SGA Target Completion Date\&quot;,&#10;&#10;    (SELECT MAX(lpc_sga.completed_at)&#10;     FROM \&quot;user_learning_plans\&quot; ulp_sga&#10;     JOIN \&quot;plan_activities\&quot; pa_sga ON pa_sga.plan_id = ulp_sga.plan_id&#10;     JOIN \&quot;learning_plan_completion\&quot; lpc_sga ON lpc_sga.user_plan_id = ulp_sga.id&#10;     WHERE ulp_sga.user_id = ulp.user_id AND ulp_sga.plan_id = '71'&#10;       AND pa_sga.is_active = TRUE&#10;       AND lpc_sga.status IN ('completed','passed')&#10;       AND lpc_sga.deleted_at IS NULL AND ulp_sga.deleted_at IS NULL) AS \&quot;Sales SGA Completed On\&quot;,&#10;&#10;    (SELECT ROUND(COUNT(DISTINCT lpc_sga_p.id)::decimal * 100 /&#10;            NULLIF((SELECT COUNT(*) FROM \&quot;plan_activities\&quot; pa_sga_p&#10;                    WHERE pa_sga_p.plan_id = '71' AND pa_sga_p.is_active = TRUE AND pa_sga_p.deleted_at IS NULL), 0), 2)&#10;     FROM \&quot;user_learning_plans\&quot; ulp_sga_p&#10;     JOIN \&quot;learning_plan_completion\&quot; lpc_sga_p ON lpc_sga_p.user_plan_id = ulp_sga_p.id&#10;     WHERE ulp_sga_p.user_id = ulp.user_id AND ulp_sga_p.plan_id = '71'&#10;       AND lpc_sga_p.status IN ('completed','passed')&#10;       AND lpc_sga_p.deleted_at IS NULL AND ulp_sga_p.deleted_at IS NULL) AS \&quot;Sales SGA Completion %\&quot;,&#10;&#10;    (SELECT CASE WHEN tech_ilp.status IN ('passed','completed') THEN 'Completed'&#10;                 WHEN tech_ilp.status = 'in_progress' THEN 'InProgress'&#10;                 WHEN tech_ilp.status = 'mapped' THEN 'Scheduled'&#10;                 ELSE INITCAP(COALESCE(tech_ilp.status::text, '')) END&#10;     FROM \&quot;ilp\&quot; tech_ilp&#10;     WHERE tech_ilp.user_id = ulp.user_id AND tech_ilp.course_id = '918' AND tech_ilp.deleted_at IS NULL&#10;     ORDER BY tech_ilp.created_at ASC LIMIT 1) AS \&quot;Technical Training Status\&quot;,&#10;&#10;    (SELECT TO_CHAR(cs.start_date, 'DD-Mon-YYYY') || ' to ' || TO_CHAR(cs.end_date, 'DD-Mon-YYYY')&#10;     FROM \&quot;ilp\&quot; tech_sched_ilp JOIN \&quot;course_schedule\&quot; cs ON cs.id = tech_sched_ilp.course_schedule_id&#10;     WHERE tech_sched_ilp.user_id = ulp.user_id AND tech_sched_ilp.course_id = '918' AND tech_sched_ilp.deleted_at IS NULL&#10;     ORDER BY tech_sched_ilp.created_at ASC LIMIT 1) AS \&quot;Technical Training Schedule Date\&quot;,&#10;&#10;    (SELECT ilp_e.created_at FROM \&quot;ilp\&quot; ilp_e&#10;     JOIN \&quot;course_version_control\&quot; cvc ON cvc.id = ilp_e.course_id&#10;     JOIN \&quot;courses\&quot; c ON c.id = cvc.course_id&#10;     WHERE ilp_e.user_id = ulp.user_id AND c.course_type::text = 'wbt' AND ilp_e.deleted_at IS NULL&#10;       AND NOT EXISTS (&#10;           SELECT 1 FROM \&quot;plan_domains\&quot; pd&#10;           JOIN \&quot;domains\&quot; d ON d.id = pd.domain_id&#10;           JOIN \&quot;plan_activities\&quot; pa ON pa.plan_id = pd.plan_id&#10;           WHERE d.domain_name = 'Organizational Orientation'&#10;             AND pa.type = 'course' AND pa.type_id = ilp_e.course_id)&#10;     ORDER BY ilp_e.created_at ASC LIMIT 1) AS \&quot;E-Learning Assigned On\&quot;,&#10;&#10;    (SELECT early_ilp.created_at FROM \&quot;ilp\&quot; early_ilp&#10;     WHERE early_ilp.user_id = ulp.user_id AND early_ilp.deleted_at IS NULL&#10;     ORDER BY early_ilp.created_at ASC LIMIT 1) AS \&quot;ILP Assigned On\&quot;&#10;&#10;FROM user_learning_plans ulp&#10;LEFT JOIN \&quot;plan_activities\&quot; pa ON pa.plan_id = ulp.plan_id AND pa.is_active = TRUE AND pa.deleted_at IS NULL&#10;LEFT JOIN \&quot;learning_plan_completion\&quot; lpc ON lpc.user_plan_id = ulp.id AND lpc.plan_id = ulp.plan_id AND lpc.item_id = pa.id AND lpc.status IN ('completed', 'passed') AND lpc.deleted_at IS NULL&#10;WHERE ulp.user_id IN (&quot; ++ (vars.uids map ($ as String) joinBy &quot;,&quot;) ++ &quot;)&#10;  AND ulp.plan_id = '71'&#10;  AND ulp.deleted_at IS NULL&#10;GROUP BY ulp.user_id, ulp.created_at, ulp.target_date&#10;ORDER BY ulp.created_at&quot;]" doc:name="mandatory_details" doc:id="211f2af6-0c9c-40f0-9d58-42b10e6dfca1" variableName="query" />
+				<ee:transform doc:name="course-db-details" doc:id="0cb80597-ae53-428b-ab98-b483e992c358">
+					<ee:message />
+					<ee:variables>
+						<ee:set-variable variableName="DB_details"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"query": vars.query,
+	"inputParameters":{
+    ids: {
+        value: vars.ids map ($ as Number),
+        "type": "ARRAY",
+        arrayType: "INTEGER"
+    }
+},
+
+"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.courseurl')
+// "user":"gmmcouat-read-user",
+// "password": Mule::p('db.uatpassword'),
+// "url":  "jdbc:postgresql://65.2.135.19:5432/glms_course?sslmode=require"
+ 
+	
+	
+}]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="flow reference-to-fetch-mandatory-details-from-course-db" doc:id="647ad0b4-daef-4a2a-99fa-5405cba5aa73" name="commonSub_Flow" />
+			
+</route>
+			<route>
+				<flow-ref doc:name="flow-reference-assessment-servey-data" doc:id="bfcf4c59-2546-4daf-bb87-ed8fd234d5b6" name="lms-employee-onboarding-survey-assessment_sub_flow" />
+				<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;payload &#10;//map (item) -&gt; {&#10;//  user_id: item.user_id default "",&#10;//  "SGA Assigned On": item."SGA Assigned On" default "",&#10;//  "SGA Completed On": item."SGA Completed On" default "",&#10;//  "SGA Status": item."SGA Status" default "",&#10;//  "30-Day Survey Assigned On": item."30-Day Survey Assigned On" default "",&#10;//  "30-Day Survey Completed On": item."30-Day Survey Completed On" default "",&#10;//  "30-Day Survey Status": item."30-Day Survey Status" default "",&#10;//  "60-Day Survey Assigned On": item."60-Day Survey Assigned On" default "",&#10;//  "60-Day Survey Completed On": item."60-Day Survey Completed On" default "",&#10;//  "60-Day Survey Status": item."60-Day Survey Status" default "",&#10;//  "90-Day Survey Assigned On": item."90-Day Survey Assigned On" default "",&#10;//  "90-Day Survey Completed On": item."90-Day Survey Completed On" default "",&#10;//  "90-Day Survey Status": item."90-Day Survey Status" default ""&#10;//}]' doc:name="surveyData" doc:id="c5c70229-9f11-4bb2-bbb3-2a5f790737b5" variableName="surveyData" />
+				<flow-ref doc:name="flow-reference-assessment-level-data" doc:id="0878e52c-911f-4f91-ad7c-4dd9c4c50174" name="lms-employee-onboarding-level-data-sub_flow" />
+				<set-variable value="#[payload]" doc:name="assessment-level-data" doc:id="dfcb75b9-cca3-4782-817b-611b2941784b" variableName="assessmentLevelData" />
+				<ee:transform doc:name="Transform Message" doc:id="67d5802f-9100-42ad-9927-de2febfc9509">
+					<ee:message>
+						<ee:set-payload><![CDATA[output application/json
+---
+vars.assessmentLevelData ++ vars.surveyData
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</route>
+			<route>
+				<set-variable value='#["SELECT &#10;mm.mentee_id as \"user_id\", &#10;md.mentor_id AS mentor_user_id&#10;FROM mentor_mentee  mm&#10;JOIN mentor_domain md ON md.id = mm.mentor_domain_id&#10;WHERE mm.mentee_id IN(" ++ (vars.uids map ($ as String) joinBy ",") ++ ")&#10;ORDER BY mm.created_at ASC;"]' doc:name="mentor-id-name" doc:id="619953ba-e4ce-49c7-aed9-ec925bf94681" variableName="mentUIdQuery" />
+				<ee:transform doc:name="dbDetails" doc:id="8684c4dd-6cf0-4017-a647-be16916a0867">
+					<ee:message />
+					<ee:variables>
+						<ee:set-variable variableName="DB_details"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"query": vars.mentUIdQuery,
+	
+	"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.learnerurl')
+//	"user":"gmmcouat-read-user",
+// "password": Mule::p('db.uatpassword'),
+// "url":"jdbc:postgresql://65.2.135.19:5432/glms_learner?sslmode=require"
+	
+	
+}]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="Flow Reference-to-fetch-mentor-user-id-from-learner-db" doc:id="d1457d01-2009-4b8c-8d10-afea6fafbdb0" name="commonSub_Flow" />
+				<ee:transform doc:name="Transform Message" doc:id="6e1db59a-f838-4abc-9e5b-b38bf392ec71">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="mentIDs"><![CDATA[%dw 2.0
+output application/java
+---
+payload.mentor_user_id]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<set-variable value='#["SELECT u.employee_id as \"user_id\", u.employee_id AS \"Mentor ID\", u.first_name AS \"Mentor Name\" FROM \"user\" u WHERE u.id IN (" ++ (vars.mentIDs map ($ as String) joinBy ",") ++ ")"]' doc:name="mentor-id-name" variableName="mentDetailsQuery" />
+				<ee:transform doc:name="dbDetails" doc:id="f3f780d2-50f7-4def-bea6-a0c1a92631d8">
+					<ee:message />
+					<ee:variables>
+						<ee:set-variable variableName="DB_details"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"query": vars.mentDetailsQuery,
+	
+	"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.userurl')
+//	"user":"gmmcouat-read-user",
+// "password": Mule::p('db.uatpassword'),
+// "url": "jdbc:postgresql://65.2.135.19:5432/glms_user?sslmode=require"
+
+	
+	
+}]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="flow-reference-to-fetch-mentorDetails-from-user-DB" doc:id="6c36126c-5a1d-4505-ad7b-057587cc7d25" name="commonSub_Flow" />
+			</route>
+		<!-- 	<route>
+				[STUDIO:"roleIdsQuery"]<set-variable value='#[%dw 2.0&#10;output application/java&#10;&#45;&#45;-&#10;"SELECT us.user_id, s.level_id FROM \"user_sga\" us JOIN \"sga\" s ON s.id = us.sga_id WHERE us.user_id IN (" ++ (vars.uids map ($ as String) joinBy ",") ++ ")"&#93;' doc:name="roleIdsQuery" doc:id="77a3e52b-107c-4aa8-8821-c0879b353665" variableName="roleIdsQuery" /> [STUDIO]
+				[STUDIO:"dbDetails"]<ee:transform doc:name="dbDetails" doc:id="15097356-ac95-4293-8581-0ce4e30aa676">
+					<ee:message />
+					<ee:variables>
+						<ee:set-variable variableName="DB_details"><![CDATA[%dw 2.0
+output application/java
+&#45;&#45;-
+{
+	"query": vars.roleIdsQuery,
+	
+	"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.assessmenturl')
+//	"user":"gmmcouat-read-user",
+// "password": Mule::p('db.uatpassword'),
+// "url":"jdbc:postgresql://65.2.135.19:5432/glms_assessment?sslmode=require"
+
+	
+	
+}&#93;&#93;></ee:set-variable>
+					</ee:variables>
+				</ee:transform> [STUDIO]
+				[STUDIO:"flow-reference-fetchroleIds-from-assessment-DB"]<flow-ref doc:name="flow-reference-fetchroleIds-from-assessment-DB" doc:id="005b9838-1749-4a3b-89b1-ed0bc8018a29" name="commonSub_Flow" /> [STUDIO]
+				[STUDIO:"Transform Message"]<ee:transform doc:name="Transform Message" doc:id="51396d40-42b5-409d-b887-4b522b2b9447">
+					<ee:message>
+					</ee:message>
+					<ee:variables>
+						<ee:set-variable variableName="sgaroleIDs"><![CDATA[%dw 2.0
+output application/json
+&#45;&#45;-
+payload.role_id&#93;&#93;></ee:set-variable>
+						<ee:set-variable variableName="sgaUIDs"><![CDATA[%dw 2.0
+output application/json
+ 
+var pro = payload
+var levelMapping = {
+    "1": "Pre-Foundational",
+    "2": "Foundational",
+    "3": "Advanced",
+    "4": "Expert"
+}
+ 
+&#45;&#45;-
+pro map (item) -> {
+    (item),
+    "SGA Level": levelMapping[item.level_id&#93; default null
+}&#93;&#93;></ee:set-variable>
+					</ee:variables>
+				</ee:transform> [STUDIO]
+			</route> -->
+			<route>
+				<set-variable value='#[%dw 2.0&#10;output application/java&#10;---&#10;"SELECT mm.mentee_id AS \"user_id\",mm.created_at AS \"Mentor Assigned On\"&#10;FROM mentor_mentee mm&#10;WHERE mm.mentee_id IN (" ++ (vars.uids map ($ as String) joinBy ",") ++ ")&#10;ORDER BY mm.created_at ASC"]' doc:name="mentor-assigned-on" doc:id="a352d832-bbe2-42a2-91d1-609707b6ef11" variableName="MentorAssignedQuery" />
+				<ee:transform doc:name="dbDetails" doc:id="1531cf4e-8940-4efa-8d11-28519d6f8d23">
+					<ee:message />
+					<ee:variables>
+						<ee:set-variable variableName="DB_details"><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"query": vars.MentorAssignedQuery,
+	"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.learnerurl')
+//	"user":"gmmcouat-read-user",
+// "password": Mule::p('db.uatpassword'),
+// "url":"jdbc:postgresql://65.2.135.19:5432/glms_learner?sslmode=require"
+
+	
+	
+}]]></ee:set-variable>
+					</ee:variables>
+				</ee:transform>
+				<flow-ref doc:name="flow-reference-to-fetch-MentorAssigned-details-from-learner-DB" doc:id="a0f1a79f-169f-437e-8f23-2cbbb624775a" name="commonSub_Flow" />
+			</route>
+			<!-- <route >
+				<logger level="INFO" doc:name="Logger" doc:id="26de2881-fed8-4974-a4bf-ce598ae48d22" />
+				<ee:transform doc:name="Set Hardcoded ID Arrays" doc:id="3f9b6488-b78e-4a55-bd63-b23684c763de">
+			<ee:message />
+			<ee:variables>
+				<ee:set-variable variableName="ids"><![CDATA[%dw 2.0
+output application/java
+-&#45;&#45;
+[
+    70636,72786,73489,73679,73768,74060,75249,75296,75780,75815,
+    75856,75887,75896,75945,75946,76077,76088,76195,76248,76697,
+    76790,76794,76795,76796,76797,76798,76799,
+    76800,76801,76802,76803,76804,76805,76806,76807,76808,76809,
+    76810,76811,76812,76813,76814,76815,76816,76817,76818,76819,
+    76820,76821,76822,76823,76824,76825,76826,76827,76828,76829,
+    76830,76831,76832,76833,76834,76835,76836,76837,76838,76839,
+    76840,76841,76842,76843,76844,76845,76846,76847,76848,76849,
+    76850,
+    76918,76919,76920,76921,76922,76923,76924,76925,76926,76927,
+    76928,76929,76930,76931,76932,76933,76934,76935,76936,
+    76937,76938,76939,76940,76941,76942,76943,76944,76945,76946,
+    76947,76948,76949,76951,76952,76953,76954,
+    76955,76957,76958,76960,76961,76962,76963,76964,76965,76966,
+    76967,76968,76969,76970,76971,76972,76973,76974,76975
+]]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+				<set-variable value="#[%dw 2.0&#10;output application/java&#10;-&#45;&#45;&#10;&quot;SELECT&#10;    ulp.user_id,&#10;    ulp.created_at AS \&quot;Mandatory Learnings Assigned On\&quot;,&#10;    ulp.target_date AS \&quot;Mandatory Learnings Target Completion Date\&quot;,&#10;    MAX(lpc.completed_at) AS \&quot;Mandatory Learnings Completed On\&quot;,&#10;&#10;    ROUND(&#10;        (COUNT(DISTINCT lpc.id)::decimal * 100) /&#10;        NULLIF((SELECT COUNT(*) FROM \&quot;plan_activities\&quot; pa&#10;                WHERE pa.plan_id = '71' AND pa.is_active = TRUE AND pa.deleted_at IS NULL), 0),&#10;    2) AS \&quot;Mandatory Learnings Completion %\&quot;,&#10;&#10;    (SELECT CASE WHEN status_ilp.status IN ('passed','completed') THEN 'Completed'&#10;                 WHEN status_ilp.status = 'in_progress' THEN 'InProgress'&#10;                 WHEN status_ilp.status = 'mapped' THEN 'Scheduled'&#10;                 ELSE INITCAP(COALESCE(status_ilp.status::text, '')) END&#10;     FROM ilp status_ilp&#10;     WHERE status_ilp.user_id = ulp.user_id AND status_ilp.course_id = '918' AND status_ilp.deleted_at IS NULL&#10;     ORDER BY status_ilp.created_at ASC LIMIT 1) AS \&quot;Product Knowledge Status\&quot;,&#10;&#10;    (SELECT TO_CHAR(cs.start_date, 'DD-Mon-YYYY') || ' to ' || TO_CHAR(cs.end_date, 'DD-Mon-YYYY')&#10;     FROM \&quot;ilp\&quot; sched_ilp JOIN \&quot;course_schedule\&quot; cs ON cs.id = sched_ilp.course_schedule_id&#10;     WHERE sched_ilp.user_id = ulp.user_id AND sched_ilp.course_id = '918' AND sched_ilp.deleted_at IS NULL&#10;     ORDER BY sched_ilp.created_at ASC LIMIT 1) AS \&quot;Product Knowledge Schedule Date\&quot;,&#10;&#10;    (SELECT CASE WHEN kra_ilp.status IN ('passed','completed') THEN 'Completed'&#10;                 WHEN kra_ilp.status = 'in_progress' THEN 'InProgress'&#10;                 WHEN kra_ilp.status = 'mapped' THEN 'Scheduled'&#10;                 ELSE INITCAP(COALESCE(kra_ilp.status::text, '')) END&#10;     FROM \&quot;ilp\&quot; kra_ilp&#10;     WHERE kra_ilp.user_id = ulp.user_id AND kra_ilp.course_id = '918' AND kra_ilp.deleted_at IS NULL&#10;     ORDER BY kra_ilp.created_at ASC LIMIT 1) AS \&quot;KRA Status\&quot;,&#10;&#10;    (SELECT TO_CHAR(cs.start_date, 'DD-Mon-YYYY') || ' to ' || TO_CHAR(cs.end_date, 'DD-Mon-YYYY')&#10;     FROM \&quot;ilp\&quot; kra_sched JOIN \&quot;course_schedule\&quot; cs ON cs.id = kra_sched.course_schedule_id&#10;     WHERE kra_sched.user_id = ulp.user_id AND kra_sched.course_id = '918' AND kra_sched.deleted_at IS NULL&#10;     ORDER BY kra_sched.created_at ASC LIMIT 1) AS \&quot;KRA Schedule Date\&quot;,&#10;&#10;    (SELECT sga_ass.created_at FROM \&quot;user_learning_plans\&quot; sga_ass&#10;     WHERE sga_ass.user_id = ulp.user_id AND sga_ass.plan_id = '71' AND sga_ass.deleted_at IS NULL&#10;     ORDER BY sga_ass.created_at ASC LIMIT 1) AS \&quot;Sales SGA Assigned On\&quot;,&#10;&#10;    (SELECT sga_tar.target_date FROM \&quot;user_learning_plans\&quot; sga_tar&#10;     WHERE sga_tar.user_id = ulp.user_id AND sga_tar.plan_id = '71' AND sga_tar.deleted_at IS NULL&#10;     ORDER BY sga_tar.created_at ASC LIMIT 1) AS \&quot;Sales SGA Target Completion Date\&quot;,&#10;&#10;    (SELECT MAX(lpc_sga.completed_at)&#10;     FROM \&quot;user_learning_plans\&quot; ulp_sga&#10;     JOIN \&quot;plan_activities\&quot; pa_sga ON pa_sga.plan_id = ulp_sga.plan_id&#10;     JOIN \&quot;learning_plan_completion\&quot; lpc_sga ON lpc_sga.user_plan_id = ulp_sga.id&#10;     WHERE ulp_sga.user_id = ulp.user_id AND ulp_sga.plan_id = '71'&#10;       AND pa_sga.is_active = TRUE&#10;       AND lpc_sga.status IN ('completed','passed')&#10;       AND lpc_sga.deleted_at IS NULL AND ulp_sga.deleted_at IS NULL) AS \&quot;Sales SGA Completed On\&quot;,&#10;&#10;    (SELECT ROUND(COUNT(DISTINCT lpc_sga_p.id)::decimal * 100 /&#10;            NULLIF((SELECT COUNT(*) FROM \&quot;plan_activities\&quot; pa_sga_p&#10;                    WHERE pa_sga_p.plan_id = '71' AND pa_sga_p.is_active = TRUE AND pa_sga_p.deleted_at IS NULL), 0), 2)&#10;     FROM \&quot;user_learning_plans\&quot; ulp_sga_p&#10;     JOIN \&quot;learning_plan_completion\&quot; lpc_sga_p ON lpc_sga_p.user_plan_id = ulp_sga_p.id&#10;     WHERE ulp_sga_p.user_id = ulp.user_id AND ulp_sga_p.plan_id = '71'&#10;       AND lpc_sga_p.status IN ('completed','passed')&#10;       AND lpc_sga_p.deleted_at IS NULL AND ulp_sga_p.deleted_at IS NULL) AS \&quot;Sales SGA Completion %\&quot;,&#10;&#10;    (SELECT CASE WHEN tech_ilp.status IN ('passed','completed') THEN 'Completed'&#10;                 WHEN tech_ilp.status = 'in_progress' THEN 'InProgress'&#10;                 WHEN tech_ilp.status = 'mapped' THEN 'Scheduled'&#10;                 ELSE INITCAP(COALESCE(tech_ilp.status::text, '')) END&#10;     FROM \&quot;ilp\&quot; tech_ilp&#10;     WHERE tech_ilp.user_id = ulp.user_id AND tech_ilp.course_id = '918' AND tech_ilp.deleted_at IS NULL&#10;     ORDER BY tech_ilp.created_at ASC LIMIT 1) AS \&quot;Technical Training Status\&quot;,&#10;&#10;    (SELECT TO_CHAR(cs.start_date, 'DD-Mon-YYYY') || ' to ' || TO_CHAR(cs.end_date, 'DD-Mon-YYYY')&#10;     FROM \&quot;ilp\&quot; tech_sched_ilp JOIN \&quot;course_schedule\&quot; cs ON cs.id = tech_sched_ilp.course_schedule_id&#10;     WHERE tech_sched_ilp.user_id = ulp.user_id AND tech_sched_ilp.course_id = '918' AND tech_sched_ilp.deleted_at IS NULL&#10;     ORDER BY tech_sched_ilp.created_at ASC LIMIT 1) AS \&quot;Technical Training Schedule Date\&quot;,&#10;&#10;    (SELECT ilp_e.created_at FROM \&quot;ilp\&quot; ilp_e&#10;     JOIN \&quot;course_version_control\&quot; cvc ON cvc.id = ilp_e.course_id&#10;     JOIN \&quot;courses\&quot; c ON c.id = cvc.course_id&#10;     WHERE ilp_e.user_id = ulp.user_id AND c.course_type::text = 'wbt' AND ilp_e.deleted_at IS NULL&#10;       AND NOT EXISTS (&#10;           SELECT 1 FROM \&quot;plan_domains\&quot; pd&#10;           JOIN \&quot;domains\&quot; d ON d.id = pd.domain_id&#10;           JOIN \&quot;plan_activities\&quot; pa ON pa.plan_id = pd.plan_id&#10;           WHERE d.domain_name = 'Organizational Orientation'&#10;             AND pa.type = 'course' AND pa.type_id = ilp_e.course_id)&#10;     ORDER BY ilp_e.created_at ASC LIMIT 1) AS \&quot;E-Learning Assigned On\&quot;,&#10;&#10;    (SELECT early_ilp.created_at FROM \&quot;ilp\&quot; early_ilp&#10;     WHERE early_ilp.user_id = ulp.user_id AND early_ilp.deleted_at IS NULL&#10;     ORDER BY early_ilp.created_at ASC LIMIT 1) AS \&quot;ILP Assigned On\&quot;&#10;&#10;FROM user_learning_plans ulp&#10;LEFT JOIN \&quot;plan_activities\&quot; pa ON pa.plan_id = ulp.plan_id AND pa.is_active = TRUE AND pa.deleted_at IS NULL&#10;LEFT JOIN \&quot;learning_plan_completion\&quot; lpc ON lpc.user_plan_id = ulp.id AND lpc.plan_id = ulp.plan_id AND lpc.item_id = pa.id AND lpc.status IN ('completed', 'passed') AND lpc.deleted_at IS NULL&#10;WHERE ulp.user_id IN (&quot; ++ (vars.ids map ($ as String) joinBy &quot;,&quot;) ++ &quot;)&#10;  AND ulp.plan_id = '71'&#10;  AND ulp.deleted_at IS NULL&#10;GROUP BY ulp.user_id, ulp.created_at, ulp.target_date&#10;ORDER BY ulp.created_at&quot;]" doc:name="Set Variable" doc:id="2f43e93d-c6ae-45e2-bf69-09d37c03a5d8" variableName="query" />
+				<db:select doc:name="fetching-course-data-from-course-DB" doc:id="01545620-517b-4543-8c9c-f7af2c67deda" config-ref="course_Config">
+			<db:sql><![CDATA[#[vars.query]]]></db:sql>
+		</db:select>
+			</route> -->
+			
+			
+		</scatter-gather>
+				<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;((payload."0".payload ++ payload."1".payload ++ payload."2".payload ++ payload."3".payload ++  payload."4".payload ) filter ((item, index) -&gt; item."user_id" != null ) groupBy $.user_id&#10;pluck (items, key) -&gt; &#10;    (items reduce ((item, acc = {}) -&gt; acc ++ (item - "user_id"))) &#10;    ++ { user_id: key })]' doc:name="aggregated-data" doc:id="e03206a7-f540-48da-bd64-072580d75140" variableName="aggregatedData" />
+				<ee:transform doc:name="duplicates" doc:id="02f2f2a3-52c3-4121-bfa9-917a841ea221">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.aggregatedData filter (item) ->
+  not (
+    (sizeOf(keysOf(item))) == 4
+    and (item["Employee ID"] != null or item["Employee ID"] == null)
+    and (item["Employee Name"] != null or item["Employee Name"] == null)
+    and (item["Job Role"] != null or item["Job Role"] == null)
+    and (item["user_id"] != null or item["user_id"] == null)
+    and (item["Mandatory Learnings Assigned On"] == null)
+    and (item["Mentor Assigned On"] == null)
+    and (item["SGA Assigned On"] == null)
+  )]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="tranformedData" doc:id="8ebb679c-c257-465e-b1d9-51b88c78d7a6">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map (item) -> {
+    "Employee ID": item."Employee ID" default "",
+    "Employee Name": item."Employee Name" default "",
+    "Job Role": item."Job Role" default "",
+    "Mandatory Learnings Assigned On": item."Mandatory Learnings Assigned On" default "",
+    "Mandatory Learnings Target Completion Date": item."Mandatory Learnings Target Completion Date" default "",
+    "Mandatory Learnings Completed On": item."Mandatory Learnings Completed On" default "",
+    "Mandatory Learnings Completion %": item."Mandatory Learnings Completion %" default "",
+    "Product Knowledge Status": item."Product Knowledge Status" default "",
+    "Product Knowledge Schedule Date": item."Product Knowledge Schedule Date" default "",
+    "KRA Status": item."KRA Status" default "",
+    "KRA Schedule Date": item."KRA Schedule Date" default "",
+    "SGA Name": item."SGA Name" default "",
+    "SGA Level": item."SGA Level" default "",
+    "SGA Assigned On": item."SGA Assigned On" default "",
+    "SGA Completed On": item."SGA Completed On" default "",
+    "SGA Status": item."SGA Status" default "",
+    "Sales SGA Assigned On": item."Sales SGA Assigned On" default "",
+    "Sales SGA Target Completion Date": item."Sales SGA Target Completion Date" default "",
+    "Sales SGA Completed On": item."Sales SGA Completed On" default "",
+    "Sales SGA Completion %": item."Sales SGA Completion %" default "",
+    "Mentor ID": item."Mentor ID" default "",
+    "Mentor Name": item."Mentor Name" default "",
+    "Mentor Assigned On": item."Mentor Assigned On" default "",
+    "Technical Training Status": item."Technical Training Status" default "",
+    "Technical Training Schedule Date": item."Technical Training Schedule Date" default "",
+    "ILP Assigned On": item."ILP Assigned On" default "",
+    "E-Learning Assigned On": item."E-Learning Assigned On" default "",
+    "30-Day Survey Assigned On": item."30-Day Survey Assigned On" default "",
+    "30-Day Survey Completed On": item."30-Day Survey Completed On" default "",
+    "30-Day Survey Status": item."30-Day Survey Status" default "",
+    "60-Day Survey Assigned On": item."60-Day Survey Assigned On" default "",
+    "60-Day Survey Completed On": item."60-Day Survey Completed On" default "",
+    "60-Day Survey Status": item."60-Day Survey Status" default "",
+    "90-Day Survey Assigned On": item."90-Day Survey Assigned On" default "",
+    "90-Day Survey Completed On": item."90-Day Survey Completed On" default "",
+    "90-Day Survey Status": item."90-Day Survey Status" default ""
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+				<set-payload value='#[%dw 2.0&#10;output application/json&#10;---&#10;((payload) filter ((item, index) -&gt; item."Employee ID" != "" ))]' doc:name="finalData" doc:id="5ef34bf0-f797-42d0-8d8a-58bae218258b" />
+				<logger level="INFO" doc:name="LMS-data-end" doc:id="da110c72-1776-43d5-be7c-5522df4ce587" message='#["LMS-Data-fetching flow completed"]' />
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="Logger" doc:id="f439b1cc-ab2c-4a47-9b15-770587dc0e4b" message='#["no user data available at database"]'/>
+			</otherwise>
+		</choice>
+	</sub-flow>
+	<sub-flow name="lms-employee-onboarding-survey-assessment_sub_flow" doc:id="f106ece8-0d99-44ea-84b1-036ec4640c70" >
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;&quot;SELECT&#10;    sga.user_id,&#10;    sga.\&quot;SGA Assigned On\&quot;,&#10;    sga.\&quot;SGA Completed On\&quot;,&#10;    sga.\&quot;SGA Status\&quot;,&#10;&#10;    MAX(CASE WHEN s.title = 'New Hire 30-Day Feedback' THEN sp.start_date END) AS \&quot;30-Day Survey Assigned On\&quot;,&#10;    MAX(CASE WHEN s.title = 'New Hire 30-Day Feedback' THEN sp.completed_on END) AS \&quot;30-Day Survey Completed On\&quot;,&#10;    MAX(CASE WHEN s.title = 'New Hire 30-Day Feedback' THEN&#10;        CASE&#10;            WHEN LOWER(sp.status::text) = 'in_progress' THEN 'InProgress'&#10;            WHEN LOWER(sp.status::text) = 'completed' THEN 'Completed'&#10;            WHEN LOWER(sp.status::text) = 'pending' THEN 'Pending'&#10;            ELSE COALESCE(sp.status::text, '')&#10;        END&#10;    END) AS \&quot;30-Day Survey Status\&quot;,&#10;&#10;    MAX(CASE WHEN s.title = 'New Hire 60-Day Feedback' THEN sp.start_date END) AS \&quot;60-Day Survey Assigned On\&quot;,&#10;    MAX(CASE WHEN s.title = 'New Hire 60-Day Feedback' THEN sp.completed_on END) AS \&quot;60-Day Survey Completed On\&quot;,&#10;    MAX(CASE WHEN s.title = 'New Hire 60-Day Feedback' THEN&#10;        CASE&#10;            WHEN LOWER(sp.status::text) = 'in_progress' THEN 'InProgress'&#10;            WHEN LOWER(sp.status::text) = 'completed' THEN 'Completed'&#10;            WHEN LOWER(sp.status::text) = 'pending' THEN 'Pending'&#10;            ELSE COALESCE(sp.status::text, '')&#10;        END&#10;    END) AS \&quot;60-Day Survey Status\&quot;,&#10;&#10;    MAX(CASE WHEN s.title = 'New Hire 90-Day Feedback' THEN sp.start_date END) AS \&quot;90-Day Survey Assigned On\&quot;,&#10;    MAX(CASE WHEN s.title = 'New Hire 90-Day Feedback' THEN sp.completed_on END) AS \&quot;90-Day Survey Completed On\&quot;,&#10;    MAX(CASE WHEN s.title = 'New Hire 90-Day Feedback' THEN&#10;        CASE&#10;            WHEN LOWER(sp.status::text) = 'in_progress' THEN 'InProgress'&#10;            WHEN LOWER(sp.status::text) = 'completed' THEN 'Completed'&#10;            WHEN LOWER(sp.status::text) = 'pending' THEN 'Pending'&#10;            ELSE COALESCE(sp.status::text, '')&#10;        END&#10;    END) AS \&quot;90-Day Survey Status\&quot;&#10;&#10;FROM \&quot;survey_participant\&quot; sp&#10;JOIN \&quot;survey\&quot; s ON s.id = sp.survey_id&#10;LEFT JOIN (&#10;    SELECT&#10;        us.user_id,&#10;        us.created_at AS \&quot;SGA Assigned On\&quot;,&#10;        CASE WHEN LOWER(us.status::text) = 'certified' THEN us.updated_at ELSE NULL END AS \&quot;SGA Completed On\&quot;,&#10;        CASE&#10;            WHEN LOWER(us.status::text) = 'in_progress' THEN 'InProgress'&#10;            WHEN LOWER(us.status::text) = 'certified' THEN 'Certified'&#10;            WHEN LOWER(us.status::text) = 'failed' THEN 'Failed'&#10;            WHEN LOWER(us.status::text) = 'unlinked' THEN 'Unlinked'&#10;            ELSE COALESCE(us.status::text, '')&#10;        END AS \&quot;SGA Status\&quot;&#10;    FROM \&quot;user_sga\&quot; us&#10;    WHERE us.user_id IN (&quot; ++ (vars.uids map ($ as String) joinBy &quot;,&quot;) ++ &quot;)&#10;    ORDER BY us.created_at ASC&#10;    LIMIT 1&#10;) sga ON sga.user_id = sp.user_id&#10;&#10;WHERE sp.user_id IN (&quot; ++ (vars.uids map ($ as String) joinBy &quot;,&quot;) ++ &quot;)&#10;  AND s.title IN ('New Hire 30-Day Feedback', 'New Hire 60-Day Feedback', 'New Hire 90-Day Feedback')&#10;GROUP BY sga.user_id, sga.\&quot;SGA Assigned On\&quot;, sga.\&quot;SGA Completed On\&quot;, sga.\&quot;SGA Status\&quot;&quot;]" doc:name="surveyData" doc:id="02f12e8b-5b4c-4f04-b54c-313db695db83" variableName="surveyQuery" />
+		<ee:transform doc:name="dbDetails" doc:id="a2646e66-955c-45f7-a870-b15ccba4a0f0" >
+			<ee:message />
+			<ee:variables >
+				<ee:set-variable variableName="DB_details" ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"query": vars.surveyQuery,
+	"inputParameters":{
+    ids: {
+        value: vars.ids map ($ as Number),
+        "type": "ARRAY",
+        arrayType: "INTEGER"
+    }
+},
+"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.assessmenturl')
+
+// "user":"gmmcouat-read-user",
+// "password": Mule::p('db.uatpassword'),
+// "url":  "jdbc:postgresql://65.2.135.19:5432/glms_assessment?sslmode=require"
+ 
+	
+	
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="flow-reference-to-fetch-survey-data-from-assessment-DB" doc:id="cc4b3264-fc31-4597-8ba0-9c74cf95c7a9" name="commonSub_Flow" />
+	</sub-flow>
+	<sub-flow name="lms-employee-onboarding-level-data-sub_flow" doc:id="5d11a019-4225-48cc-9e07-a878f16e0ae8" >
+		<set-variable value='#[%dw 2.0&#10;output application/java&#10;---&#10;"SELECT s.level_id,us.user_id&#10;FROM user_sga us&#10;JOIN \"sga\" s ON s.id = us.sga_id&#10;WHERE us.user_id IN (" ++ (vars.uids map ($ as String) joinBy ",") ++ ")&#10;ORDER BY us.created_at ASC"]' doc:name="levelid-data" doc:id="70cfe71b-0f25-4153-aca0-8c0f9bc0c2c8" variableName="levelidQuery" />
+		<ee:transform doc:name="dbDetails" doc:id="43b4d956-1861-4b2c-876c-30a0de637757" >
+			<ee:message />
+			<ee:variables >
+				<ee:set-variable variableName="DB_details" ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	"query": vars.levelidQuery,
+	"user":Mule::p('db.user'),
+	"password": Mule::p('secure::db.password'),
+	"url":Mule::p('db.assessmenturl')
+//	"user":"gmmcouat-read-user",
+// "password": Mule::p('db.uatpassword'),
+// "url":"jdbc:postgresql://65.2.135.19:5432/glms_assessment?sslmode=require"
+
+	
+	
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<flow-ref doc:name="flow-reference-to-fetch-levelids-from-assessment-DB" doc:id="19109376-6da7-4294-9808-941b8858df7a" name="commonSub_Flow" />
+		<ee:transform doc:name="Transform Message" doc:id="2ace3f06-940d-40a5-9708-a824645c17fc" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[output application/json
+ 
+var pro = payload
+var levelMapping = {
+    "1": "Pre-Foundational",
+    "2": "Foundational",
+    "3": "Advanced",
+    "4": "Expert"
+}
+ 
+---
+pro map (item) -> {
+    (item),
+    "SGA Level": levelMapping[item.level_id] default null
+}
+ ]]></ee:set-payload>
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="levelid" ><![CDATA[%dw 2.0
+output application/java
+---
+payload map ($.level_id)]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+	</sub-flow>
+</mule>
